@@ -30,20 +30,32 @@ public func configure(_ app: Application) async throws {
 
     app.migrations.add(CreatePriceAlert())
 
-    let keyPath = "/Users/artkachenko/Desktop/Developer/My projects/Keys/AuthKey_2Q872WQ32R.p8"
-    app.apns.configuration = try .init(authenticationMethod: .jwt(key: .private(filePath: keyPath),
-                                                                  keyIdentifier: "2Q872WQ32R",
-                                                                  teamIdentifier: "4H24ZTYPFZ"),
+    // register routes
+    try routes(app)
+
+    // register for sending push notifications
+    try configureAPNS(app)
+
+    // schedule price check for saved alerts
+    schedulePriceCheck(app)
+}
+
+private func configureAPNS(_ app: Application) throws {
+    guard let apnsKey = Environment.get("APNS_KEY"),
+          let keyID = Environment.get("KEY_ID"),
+          let teamID = Environment.get("TEAM_ID") else { return }
+    app.apns.configuration = try .init(authenticationMethod: .jwt(key: .private(pem: apnsKey),
+                                                                  keyIdentifier: .init(string: keyID),
+                                                                  teamIdentifier: teamID),
                                        topic: "arturtkachenko.WenMoon",
                                        environment: .sandbox)
+}
 
+private func schedulePriceCheck(_ app: Application) {
     _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .seconds(60),
                                                             delay: .seconds(60)) { task -> EventLoopFuture<Void> in
         let controller = PriceAlertController()
         let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
         return controller.checkPriceForAlerts(on: request)
     }
-
-    // register routes
-    try routes(app)
 }
