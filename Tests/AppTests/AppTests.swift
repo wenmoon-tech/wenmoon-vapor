@@ -30,6 +30,7 @@ final class AppTests: XCTestCase {
             XCTAssertEqual(priceAlerts.first?.coinID, priceAlert.coinID)
             XCTAssertEqual(priceAlerts.first?.coinName, priceAlert.coinName)
             XCTAssertEqual(priceAlerts.first?.targetPrice, priceAlert.targetPrice)
+            XCTAssertEqual(priceAlerts.first?.targetDirection, priceAlert.targetDirection)
             XCTAssertEqual(priceAlerts.first?.deviceToken, priceAlert.deviceToken)
         }
     }
@@ -57,6 +58,7 @@ final class AppTests: XCTestCase {
             XCTAssertEqual(priceAlerts.first?.coinID, priceAlert.coinID)
             XCTAssertEqual(priceAlerts.first?.coinName, priceAlert.coinName)
             XCTAssertEqual(priceAlerts.first?.targetPrice, priceAlert.targetPrice)
+            XCTAssertEqual(priceAlerts.first?.targetDirection, priceAlert.targetDirection)
             XCTAssertEqual(priceAlerts.first?.deviceToken, priceAlert.deviceToken)
         }
     }
@@ -86,6 +88,7 @@ final class AppTests: XCTestCase {
             XCTAssertEqual(priceAlerts.first?.coinID, receivedPriceAlert?.coinID)
             XCTAssertEqual(priceAlerts.first?.coinName, receivedPriceAlert?.coinName)
             XCTAssertEqual(priceAlerts.first?.targetPrice, receivedPriceAlert?.targetPrice)
+            XCTAssertEqual(priceAlerts.first?.targetDirection, priceAlert.targetDirection)
             XCTAssertEqual(priceAlerts.first?.deviceToken, receivedPriceAlert?.deviceToken)
         })
 
@@ -169,6 +172,7 @@ final class AppTests: XCTestCase {
                 XCTAssertEqual(receivedPriceAlert?.coinID, priceAlert.coinID)
                 XCTAssertEqual(receivedPriceAlert?.coinName, priceAlert.coinName)
                 XCTAssertEqual(receivedPriceAlert?.targetPrice, priceAlert.targetPrice)
+                XCTAssertEqual(receivedPriceAlert?.targetDirection, priceAlert.targetDirection)
                 XCTAssertEqual(receivedPriceAlert?.deviceToken, priceAlert.deviceToken)
             }
         })

@@ -1,4 +1,5 @@
 import NIOSSL
+import JWTKit
 import Fluent
 import FluentPostgresDriver
 import APNS
@@ -8,7 +9,7 @@ import Vapor
 public func configure(_ app: Application) async throws {
     // uncomment to serve files from /Public folder
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
-
+    
     if let databaseURL = Environment.get("DATABASE_URL"),
        var postgresConfig = PostgresConfiguration(url: databaseURL) {
         postgresConfig.tlsConfiguration = .makeClientConfiguration()
@@ -48,14 +49,22 @@ public func configure(_ app: Application) async throws {
 }
 
 private func configureAPNS(_ app: Application) throws {
-    guard let apnsKey = Environment.get("APNS_KEY"),
-          let keyID = Environment.get("KEY_ID"),
-          let teamID = Environment.get("TEAM_ID") else { return }
-    app.apns.configuration = try .init(authenticationMethod: .jwt(key: .private(pem: apnsKey),
-                                                                  keyIdentifier: .init(string: keyID),
-                                                                  teamIdentifier: teamID),
-                                       topic: "arturtkachenko.WenMoon",
-                                       environment: .sandbox)
+    let key: ECDSAKey
+
+    if let keyContent = Environment.get("APNS_KEY") {
+        key = try .private(pem: keyContent)
+    } else {
+        let keyPath = "/Users/artkachenko/Desktop/Developer/My projects/Keys/AuthKey_2Q872WQ32R.p8"
+        key = try .private(filePath: keyPath)
+    }
+
+    let keyID = Environment.get("KEY_ID") ?? "2Q872WQ32R"
+    let teamID = Environment.get("TEAM_ID") ?? "4H24ZTYPFZ"
+    app.apns.configuration = .init(authenticationMethod: .jwt(key: key,
+                                                              keyIdentifier: .init(string: keyID),
+                                                              teamIdentifier: teamID),
+                                   topic: "arturtkachenko.WenMoon",
+                                   environment: .sandbox)
 }
 
 private func schedulePriceCheck(_ app: Application) {

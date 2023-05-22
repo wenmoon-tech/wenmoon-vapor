@@ -2,6 +2,11 @@ import Fluent
 import Vapor
 
 final class PriceAlert: Model, Content {
+    enum TargetDirection: String, Codable {
+        case above = "ABOVE"
+        case below = "BELOW"
+    }
+
     static let schema = "price_alerts"
 
     @ID(key: .id)
@@ -16,16 +21,25 @@ final class PriceAlert: Model, Content {
     @Field(key: "target_price")
     var targetPrice: Double
 
+    @Field(key: "target_direction")
+    var targetDirection: TargetDirection
+
     @Field(key: "device_token")
     var deviceToken: String?
 
     init() { }
 
-    init(id: UUID? = nil, coinID: String, coinName: String, targetPrice: Double, deviceToken: String? = nil) {
+    init(id: UUID? = nil,
+         coinID: String,
+         coinName: String,
+         targetPrice: Double,
+         targetDirection: TargetDirection,
+         deviceToken: String? = nil) {
         self.id = id
         self.coinID = coinID
         self.coinName = coinName
         self.targetPrice = targetPrice
+        self.targetDirection = targetDirection
         self.deviceToken = deviceToken
     }
 
@@ -33,6 +47,7 @@ final class PriceAlert: Model, Content {
         case coinID = "coin_id"
         case coinName = "coin_name"
         case targetPrice = "target_price"
+        case targetDirection = "target_direction"
         case deviceToken = "device_token"
     }
 
@@ -41,8 +56,13 @@ final class PriceAlert: Model, Content {
         let coinID = try container.decode(String.self, forKey: .coinID)
         let coinName = try container.decode(String.self, forKey: .coinName)
         let targetPrice = try container.decode(Double.self, forKey: .targetPrice)
+        let targetDirection = try container.decode(TargetDirection.self, forKey: .targetDirection)
         let deviceToken = try container.decodeIfPresent(String.self, forKey: .deviceToken)
-        self.init(coinID: coinID, coinName: coinName, targetPrice: targetPrice, deviceToken: deviceToken)
+        self.init(coinID: coinID,
+                  coinName: coinName,
+                  targetPrice: targetPrice,
+                  targetDirection: targetDirection,
+                  deviceToken: deviceToken)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -50,6 +70,7 @@ final class PriceAlert: Model, Content {
         try container.encode(coinID, forKey: .coinID)
         try container.encode(coinName, forKey: .coinName)
         try container.encode(targetPrice, forKey: .targetPrice)
+        try container.encode(targetDirection, forKey: .targetDirection)
         try container.encode(deviceToken, forKey: .deviceToken)
     }
 }

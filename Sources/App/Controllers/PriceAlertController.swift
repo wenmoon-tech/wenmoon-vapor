@@ -71,7 +71,17 @@ struct PriceAlertController: RouteCollection {
                   let deviceToken = priceAlert.deviceToken else {
                 continue
             }
-            if currentPrice >= priceAlert.targetPrice {
+
+            let meetsCondition: Bool
+
+            switch priceAlert.targetDirection {
+            case .above:
+                meetsCondition = currentPrice >= priceAlert.targetPrice
+            case .below:
+                meetsCondition = currentPrice <= priceAlert.targetPrice
+            }
+
+            if meetsCondition {
                 let badgeCount = (badgeCountByDeviceToken[deviceToken] ?? .zero) + 1
                 badgeCountByDeviceToken[deviceToken] = badgeCount
                 let sendNotificationFuture = sendPushNotification(on: req,

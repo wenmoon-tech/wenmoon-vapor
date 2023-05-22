@@ -7,6 +7,7 @@ struct CreatePriceAlert: AsyncMigration {
             .field("coin_id", .string, .required)
             .field("coin_name", .string, .required)
             .field("target_price", .double, .required)
+            .field("target_direction", .string, .required)
             .field("device_token", .string)
             .create()
     }
