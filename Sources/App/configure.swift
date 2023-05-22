@@ -29,6 +29,13 @@ public func configure(_ app: Application) async throws {
 
     app.migrations.add(CreatePriceAlert())
 
+    _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .seconds(60),
+                                                            delay: .seconds(60)) { task -> EventLoopFuture<Void> in
+        let controller = PriceAlertController()
+        let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
+        return controller.checkPriceForAlerts(on: request)
+    }
+
     // register routes
     try routes(app)
 }
