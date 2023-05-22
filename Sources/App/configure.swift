@@ -9,24 +9,31 @@ public func configure(_ app: Application) async throws {
     // uncomment to serve files from /Public folder
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
-    let databaseName: String
-    let databasePort: Int
-
-    if app.environment == .testing {
-        databaseName = "vapor-test"
-        databasePort = 5433
+    if let databaseURL = Environment.get("DATABASE_URL"),
+       var postgresConfig = PostgresConfiguration(url: databaseURL) {
+        postgresConfig.tlsConfiguration = .makeClientConfiguration()
+        postgresConfig.tlsConfiguration?.certificateVerification = .none
+        app.databases.use(.postgres(configuration: postgresConfig), as: .psql)
     } else {
-        databaseName = Environment.get("DATABASE_NAME") ?? "vapor_database"
-        databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber
-    }
+        let databaseName: String
+        let databasePort: Int
 
-    app.databases.use(.postgres(
-        hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-        port: databasePort,
-        username: Environment.get("DATABASE_USERNAME") ?? "vapor_username",
-        password: Environment.get("DATABASE_PASSWORD") ?? "vapor_password",
-        database: databaseName
-    ), as: .psql)
+        if app.environment == .testing {
+            databaseName = "vapor-test"
+            databasePort = 5433
+        } else {
+            databaseName = Environment.get("DATABASE_NAME") ?? "vapor_database"
+            databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber
+        }
+
+        app.databases.use(.postgres(
+            hostname: Environment.get("DATABASE_HOST") ?? "localhost",
+            port: databasePort,
+            username: Environment.get("DATABASE_USERNAME") ?? "vapor_username",
+            password: Environment.get("DATABASE_PASSWORD") ?? "vapor_password",
+            database: databaseName
+        ), as: .psql)
+    }
 
     app.migrations.add(CreatePriceAlert())
 
