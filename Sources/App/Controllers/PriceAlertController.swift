@@ -1,4 +1,5 @@
 import Fluent
+import APNS
 import Vapor
 
 struct PriceAlertController: RouteCollection {
@@ -51,12 +52,54 @@ struct PriceAlertController: RouteCollection {
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
                 do {
                     let marketData = try decoder.decode([String: CoinMarketData].self, from: data)
-                    // TODO: - Configure sending push notifications if the target price is reached
-                    return req.eventLoop.makeSucceededVoidFuture()
+                    return pushNotification(req, priceAlerts, marketData)
                 } catch {
                     return req.eventLoop.makeFailedFuture(error)
                 }
             }
         }
+    }
+
+    private func pushNotification(_ req: Request,
+                                  _ priceAlerts: [PriceAlert],
+                                  _ marketData: [String: CoinMarketData]) -> EventLoopFuture<Void> {
+        var badgeCountByDeviceToken: [String: Int] = [:]
+        var deleteAlertFutures: [EventLoopFuture<Void>] = []
+
+        for priceAlert in priceAlerts {
+            guard let currentPrice = marketData[priceAlert.coinID]?.currentPrice,
+                  let deviceToken = priceAlert.deviceToken else {
+                continue
+            }
+            if currentPrice >= priceAlert.targetPrice {
+                let badgeCount = (badgeCountByDeviceToken[deviceToken] ?? .zero) + 1
+                badgeCountByDeviceToken[deviceToken] = badgeCount
+                let sendNotificationFuture = sendPushNotification(on: req,
+                                                                  for: priceAlert,
+                                                                  deviceToken: deviceToken,
+                                                                  badge: badgeCount)
+                deleteAlertFutures.append(sendNotificationFuture.flatMap {
+                    priceAlert.delete(on: req.db)
+                })
+            }
+        }
+        return EventLoopFuture<Void>.andAllSucceed(deleteAlertFutures, on: req.eventLoop)
+    }
+
+    private func sendPushNotification(on req: Request,
+                                      for priceAlert: PriceAlert,
+                                      deviceToken: String,
+                                      badge: Int) -> EventLoopFuture<Void> {
+        let alert = APNSwiftAlert(title: "Price Alert",
+                                  body: "Your price target of \(priceAlert.targetPrice) for \(priceAlert.coinName) is reached!")
+        let aps = APNSwiftPayload(alert: alert, badge: badge, sound: .normal("cow.wav"))
+        return req.apns.send(aps, to: deviceToken)
+            .map { response in
+                print("Push notification sent successfully: \(response)")
+            }
+            .flatMapError { error in
+                print("Failed to send push notification: \(error.localizedDescription)")
+                return req.eventLoop.makeFailedFuture(error)
+            }
     }
 }

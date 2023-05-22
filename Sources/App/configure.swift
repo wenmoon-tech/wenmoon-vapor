@@ -1,6 +1,7 @@
 import NIOSSL
 import Fluent
 import FluentPostgresDriver
+import APNS
 import Vapor
 
 // configures your application
@@ -28,6 +29,13 @@ public func configure(_ app: Application) async throws {
     ), as: .psql)
 
     app.migrations.add(CreatePriceAlert())
+
+    let keyPath = "/Users/artkachenko/Desktop/Developer/My projects/Keys/AuthKey_2Q872WQ32R.p8"
+    app.apns.configuration = try .init(authenticationMethod: .jwt(key: .private(filePath: keyPath),
+                                                                  keyIdentifier: "2Q872WQ32R",
+                                                                  teamIdentifier: "4H24ZTYPFZ"),
+                                       topic: "arturtkachenko.WenMoon",
+                                       environment: .sandbox)
 
     _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .seconds(60),
                                                             delay: .seconds(60)) { task -> EventLoopFuture<Void> in
