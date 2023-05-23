@@ -29,19 +29,22 @@ func routes(_ app: Application) throws {
                 .count()
                 .flatMap { count in
                     let headers = HTTPHeaders([("content-type", "application/json")])
+
+                    let body: Data
+                    do {
+                        let encoder = JSONEncoder()
+                        body = try encoder.encode(priceAlert)
+                    } catch {
+                        return req.eventLoop.makeFailedFuture(Abort(.internalServerError))
+                    }
+
                     guard count == .zero else {
-                        let body = ByteBuffer(string: "Price alert with id \(priceAlert.coinID) already exists for this device")
-                        let response = Response(status: .ok, headers: headers, body: .init(buffer: body))
+                        let response = Response(status: .ok, headers: headers, body: .init(data: body))
                         return req.eventLoop.makeSucceededFuture(response)
                     }
-                    return priceAlert.save(on: req.db)
-                        .flatMapThrowing {
-                            let encoder = JSONEncoder()
-                            encoder.outputFormatting = .prettyPrinted
-                            let body = ByteBuffer(data: try encoder.encode(priceAlert))
-                            let response = Response(status: .ok, headers: headers, body: .init(buffer: body))
-                            return response
-                        }
+                    return priceAlert.save(on: req.db).flatMapThrowing {
+                        Response(status: .ok, headers: headers, body: .init(data: body))
+                    }
                 }
         } catch {
             return req.eventLoop.makeFailedFuture(error)
@@ -61,17 +64,25 @@ func routes(_ app: Application) throws {
             .filter(\.$deviceToken == deviceToken)
             .filter(\.$coinID == coinID)
             .first()
-            .flatMap { priceAlert in
+            .flatMap { priceAlert -> EventLoopFuture<Response> in
                 let headers = HTTPHeaders([("content-type", "application/json")])
                 guard let priceAlert else {
                     return req.eventLoop.makeFailedFuture(Abort(.notFound,
                                                                 headers: headers,
-                                                                reason: "Could not find price alert with following coin id: \(coinID)"))
+                                                                reason: "Could not find price alert with the following coin id: \(coinID)"))
                 }
-                return priceAlert.delete(on: req.db)
-                    .transform(to: Response(status: .ok,
-                                            headers: headers,
-                                            body: .init(buffer: ByteBuffer(string: "Price alert for coin \(coinID) has been deleted."))))
+
+                let body: Data
+                do {
+                    let encoder = JSONEncoder()
+                    body = try encoder.encode(priceAlert)
+                } catch {
+                    return req.eventLoop.makeFailedFuture(Abort(.internalServerError))
+                }
+
+                return priceAlert.delete(on: req.db).flatMapThrowing {
+                    Response(status: .ok, headers: headers, body: .init(data: body))
+                }
             }
     }
 

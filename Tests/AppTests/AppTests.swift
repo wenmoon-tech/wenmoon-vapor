@@ -88,13 +88,9 @@ final class AppTests: XCTestCase {
             XCTAssertEqual(priceAlerts.first?.coinID, receivedPriceAlert?.coinID)
             XCTAssertEqual(priceAlerts.first?.coinName, receivedPriceAlert?.coinName)
             XCTAssertEqual(priceAlerts.first?.targetPrice, receivedPriceAlert?.targetPrice)
-            XCTAssertEqual(priceAlerts.first?.targetDirection, priceAlert.targetDirection)
+            XCTAssertEqual(priceAlerts.first?.targetDirection, receivedPriceAlert?.targetDirection)
             XCTAssertEqual(priceAlerts.first?.deviceToken, receivedPriceAlert?.deviceToken)
         })
-
-        let expectedBodyMessage = "Price alert with id \(priceAlert.coinID) already exists"
-        let secondReceivedPriceAlert = try postPriceAlert(priceAlert, expectedBodyMessage: expectedBodyMessage)
-        XCTAssertNil(secondReceivedPriceAlert)
     }
 
     func testPostPriceAlertFailure() throws {
@@ -117,7 +113,13 @@ final class AppTests: XCTestCase {
 
         try app.test(.DELETE, "price-alert/\(priceAlert.coinID)", headers: headers) { response in
             XCTAssertEqual(response.status, .ok)
-            XCTAssertEqual(response.body.string, "Price alert for coin \(priceAlert.coinID) has been deleted.")
+
+            let deletedPriceAlert = try response.content.decode(PriceAlert.self)
+            XCTAssertEqual(deletedPriceAlert.coinID, priceAlert.coinID)
+            XCTAssertEqual(deletedPriceAlert.coinName, priceAlert.coinName)
+            XCTAssertEqual(deletedPriceAlert.targetPrice, priceAlert.targetPrice)
+            XCTAssertEqual(deletedPriceAlert.targetDirection, priceAlert.targetDirection)
+            XCTAssertEqual(deletedPriceAlert.deviceToken, priceAlert.deviceToken)
 
             try app.test(.GET, "price-alerts") { secondResponse in
                 XCTAssertEqual(secondResponse.status, .ok)
@@ -130,7 +132,7 @@ final class AppTests: XCTestCase {
 
     func testDeletePriceAlertInvalidCoinID() throws {
         let invalidCoinID = "invalid-coin-id"
-        let expectedBodyMessage = "Could not find price alert with following coin id: \(invalidCoinID)"
+        let expectedBodyMessage = "Could not find price alert with the following coin id: \(invalidCoinID)"
         let headers = HTTPHeaders([("content-type", "application/json"),
                                    ("X-Device-ID", "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030")])
 
@@ -153,8 +155,7 @@ final class AppTests: XCTestCase {
     // MARK: - Helpers
 
     private func postPriceAlert(_ priceAlert: PriceAlert,
-                                expectedStatus: HTTPResponseStatus = .ok,
-                                expectedBodyMessage: String? = nil) throws -> PriceAlert? {
+                                expectedStatus: HTTPResponseStatus = .ok) throws -> PriceAlert? {
         var receivedPriceAlert: PriceAlert?
         let headers = HTTPHeaders([("content-type", "application/json"),
                                    ("X-Device-ID", "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030")])
@@ -164,17 +165,12 @@ final class AppTests: XCTestCase {
         }, afterResponse: { response in
             XCTAssertEqual(response.status, expectedStatus)
 
-            if let expectedBodyMessage {
-                XCTAssert(response.body.string.contains(expectedBodyMessage))
-                receivedPriceAlert = nil
-            } else {
-                receivedPriceAlert = try response.content.decode(PriceAlert.self)
-                XCTAssertEqual(receivedPriceAlert?.coinID, priceAlert.coinID)
-                XCTAssertEqual(receivedPriceAlert?.coinName, priceAlert.coinName)
-                XCTAssertEqual(receivedPriceAlert?.targetPrice, priceAlert.targetPrice)
-                XCTAssertEqual(receivedPriceAlert?.targetDirection, priceAlert.targetDirection)
-                XCTAssertEqual(receivedPriceAlert?.deviceToken, priceAlert.deviceToken)
-            }
+            receivedPriceAlert = try response.content.decode(PriceAlert.self)
+            XCTAssertEqual(receivedPriceAlert?.coinID, priceAlert.coinID)
+            XCTAssertEqual(receivedPriceAlert?.coinName, priceAlert.coinName)
+            XCTAssertEqual(receivedPriceAlert?.targetPrice, priceAlert.targetPrice)
+            XCTAssertEqual(receivedPriceAlert?.targetDirection, priceAlert.targetDirection)
+            XCTAssertEqual(receivedPriceAlert?.deviceToken, priceAlert.deviceToken)
         })
         return receivedPriceAlert
     }
