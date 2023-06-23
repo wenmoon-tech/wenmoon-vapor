@@ -68,8 +68,8 @@ private func configureAPNS(_ app: Application) throws {
 }
 
 private func schedulePriceCheck(_ app: Application) {
-    _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .seconds(60),
-                                                            delay: .seconds(60)) { task -> EventLoopFuture<Void> in
+    _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .seconds(180),
+                                                            delay: .seconds(180)) { task -> EventLoopFuture<Void> in
         let controller = PriceAlertController()
         let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
         return controller.checkPriceForAlerts(on: request)

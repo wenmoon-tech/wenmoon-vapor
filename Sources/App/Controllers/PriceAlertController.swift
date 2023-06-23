@@ -101,7 +101,7 @@ struct PriceAlertController: RouteCollection {
                                       deviceToken: String,
                                       badge: Int) -> EventLoopFuture<Void> {
         let alert = APNSwiftAlert(title: "Price Alert",
-                                  body: "Your price target of \(priceAlert.targetPrice) for \(priceAlert.coinName) is reached!")
+                                  body: "Your price target of \(priceAlert.targetPrice)$ for \(priceAlert.coinName) is reached!")
         let aps = APNSwiftPayload(alert: alert, badge: badge, sound: .normal("default"))
         let notification = PriceAlertNotification(coinID: priceAlert.coinID, aps: aps)
         return req.apns.send(notification, to: deviceToken)
