@@ -38,18 +38,42 @@ public func configure(_ app: Application) async throws {
             database: databaseName
         ), as: .psql)
     }
-
+    
     // Add migrations (make sure your migrations are properly configured)
-    app.migrations.add(CreatePriceAlert())
+    app.migrations.add([CreatePriceAlert(), CreateCoin()])
+    try await app.autoMigrate()
 
     // Register routes
     try routes(app)
+    
+    scheduleFetchingCoins(app)
 
     // Register for sending push notifications (if needed)
     //try configureAPNS(app)
 
     // Schedule price check for saved alerts (if needed)
     //schedulePriceCheck(app)
+}
+
+private func scheduleFetchingCoins(_ app: Application, maxPages: Int = 4, perPage: Int = 250) {
+    _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .zero,
+                                                            delay: .seconds(180)) { task -> EventLoopFuture<Void> in
+        let controller = CoinScannerController()
+        let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
+
+        return fetchMultiplePages(request: request, controller: controller, maxPages: maxPages, perPage: perPage)
+    }
+}
+
+private func fetchMultiplePages(request: Request, controller: CoinScannerController, maxPages: Int, perPage: Int) -> EventLoopFuture<Void> {
+    var futures: [EventLoopFuture<Void>] = []
+    
+    for page in 1...maxPages {
+        let future = controller.fetchCoins(on: request, page: page, perPage: perPage)
+        futures.append(future)
+    }
+    
+    return request.eventLoop.flatten(futures).transform(to: ())
 }
 
 //private func configureAPNS(_ app: Application) throws {
