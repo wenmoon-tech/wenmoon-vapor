@@ -18,6 +18,21 @@ func routes(_ app: Application) throws {
             .all()
     }
     
+    app.get("search") { req -> EventLoopFuture<[Coin]> in
+        guard let searchTerm = try? req.query.get(String.self, at: "query"), !searchTerm.isEmpty else {
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'query' is required"))
+        }
+        
+        return Coin.query(on: req.db)
+            .group(.or) { group in
+                group
+                    .filter(\.$coinName ~~ searchTerm)
+                    .filter(\.$coinID ~~ searchTerm)
+            }
+            .sort(\.$marketCapRank, .ascending)
+            .all()
+    }
+    
     // MARK: - Price Alerts
     
     app.get("price-alerts") { req -> EventLoopFuture<[PriceAlert]> in
