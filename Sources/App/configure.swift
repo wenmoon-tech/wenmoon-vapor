@@ -55,7 +55,7 @@ public func configure(_ app: Application) async throws {
     //schedulePriceCheck(app)
 }
 
-private func scheduleFetchingCoins(_ app: Application, maxPages: Int = 4, perPage: Int = 250) {
+private func scheduleFetchingCoins(_ app: Application, maxPages: Int = 10, perPage: Int = 250) {
     _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(initialDelay: .zero,
                                                             delay: .seconds(180)) { task -> EventLoopFuture<Void> in
         let controller = CoinScannerController()

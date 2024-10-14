@@ -43,7 +43,7 @@ final class PriceAlert: Model, Content {
         self.deviceToken = deviceToken
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case coinID = "coin_id"
         case coinName = "coin_name"
         case targetPrice = "target_price"

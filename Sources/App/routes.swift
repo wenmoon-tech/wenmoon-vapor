@@ -33,6 +33,26 @@ func routes(_ app: Application) throws {
             .all()
     }
     
+    app.get("market-data") { req -> EventLoopFuture<[String: MarketData]> in
+        guard let coinIDsString = try? req.query.get(String.self, at: "ids"), !coinIDsString.isEmpty else {
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'ids' is required"))
+        }
+        
+        let coinIDs = coinIDsString.split(separator: ",").map { String($0) }
+        
+        return Coin.query(on: req.db)
+            .filter(\.$coinID ~~ coinIDs)
+            .all()
+            .map { coins in
+                var marketDataDict: [String: MarketData] = [:]
+                for coin in coins {
+                    let marketData = MarketData(currentPrice: coin.currentPrice, priceChange: coin.priceChangePercentage24H)
+                    marketDataDict[coin.coinID] = marketData
+                }
+                return marketDataDict
+            }
+    }
+    
     // MARK: - Price Alerts
     
     app.get("price-alerts") { req -> EventLoopFuture<[PriceAlert]> in

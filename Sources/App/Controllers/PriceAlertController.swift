@@ -6,36 +6,29 @@ struct PriceAlertController {
 
     func checkPriceForAlerts(on req: Request) -> EventLoopFuture<Void> {
         PriceAlert.query(on: req.db).all().flatMap { priceAlerts in
-            let priceAlertIDs = Set(priceAlerts.compactMap { $0.coinID }).joined(separator: ",")
-            guard !priceAlertIDs.isEmpty else {
+            let priceAlertCoinIDs = Set(priceAlerts.compactMap { $0.coinID })
+            guard !priceAlertCoinIDs.isEmpty else {
                 return req.eventLoop.makeSucceededVoidFuture()
             }
-            let url = "https://api.coingecko.com/api/v3/simple/price?ids=\(priceAlertIDs)&vs_currencies=usd"
-            return req.client.get(URI(string: url)).flatMap { response in
-                guard response.status == .ok else {
-                    let errorMessage = "Failed to fetch coin prices: \(response.status)"
-                    return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: errorMessage))
-                }
-
-                guard let data = response.body else {
-                    return req.eventLoop.makeFailedFuture(Abort(.badRequest))
-                }
-
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                do {
-                    let marketData = try decoder.decode([String: CoinMarketData].self, from: data)
+            
+            return Coin.query(on: req.db)
+                .filter(\.$coinID ~~ priceAlertCoinIDs)
+                .all()
+                .flatMap { coins in
+                    let coinMarketData = Dictionary(uniqueKeysWithValues: coins.map { ($0.coinID, $0) })
+                    
+                    let marketData = coinMarketData.mapValues { coin in
+                        MarketData(currentPrice: coin.currentPrice,
+                                   priceChange: coin.priceChangePercentage24H)
+                    }
                     return pushNotification(req, priceAlerts, marketData)
-                } catch {
-                    return req.eventLoop.makeFailedFuture(error)
                 }
-            }
         }
     }
 
     private func pushNotification(_ req: Request,
                                   _ priceAlerts: [PriceAlert],
-                                  _ marketData: [String: CoinMarketData]) -> EventLoopFuture<Void> {
+                                  _ marketData: [String: MarketData]) -> EventLoopFuture<Void> {
         var badgeCountByDeviceToken: [String: Int] = [:]
         var deleteAlertFutures: [EventLoopFuture<Void>] = []
 
