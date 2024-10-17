@@ -12,9 +12,10 @@ final class AppTests: XCTestCase {
     override func setUp() async throws {
         app = try await Application.testable()
     }
-
-    override func tearDown() {
-        app.shutdown()
+    
+    override func tearDown() async throws {
+        try await app.autoRevert()
+        try await app.asyncShutdown()
     }
 
     // MARK: - Tests
