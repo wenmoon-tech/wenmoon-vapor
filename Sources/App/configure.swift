@@ -21,7 +21,7 @@ public func configure(_ app: Application) async throws {
 
         // Determine database name and port based on environment (testing or production)
         if app.environment == .testing {
-            databaseName = "vapor-test"
+            databaseName = "wenmoon_db_test"
             databasePort = 5433
         } else {
             // Use wenmoon_db and localhost for your local setup
