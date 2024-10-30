@@ -19,147 +19,169 @@ final class CoinTests: XCTestCase {
     // MARK: - Tests
     // Get Coins
     func testGetCoinsSuccess() async throws {
-        let bitcoin = try await createBitcoin()
-        let ethereum = try await createEthereum()
+        // Setup
+        let coins = try await createCoins()
+        // Action
         try app.test(.GET, "coins") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let coins = try response.content.decode([Coin].self)
-            XCTAssertEqual(coins.count, 2)
-            assertCoin(coins.first!, bitcoin)
-            assertCoin(coins.last!, ethereum)
+            let receivedCoins = try response.content.decode([Coin].self)
+            assertCoinsEqual(receivedCoins, coins)
         }
     }
     
     func testGetCoinsPaginationSuccess() async throws {
-        let bitcoin = try await createBitcoin()
-        let ethereum = try await createEthereum()
-        _ = try await createBNB()
-        
-        try app.test(.GET, "coins?page=1&per_page=2") { response in
+        // Setup
+        let coinsAtPage1 = try await createCoins(at: 1)
+        _ = try await createCoins(at: 2)
+        // Action
+        try app.test(.GET, "coins?page=1&per_page=10") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let coins = try response.content.decode([Coin].self)
-            XCTAssertEqual(coins.count, 2)
-            XCTAssertEqual(coins.map { $0.coinID }, [bitcoin.coinID, ethereum.coinID])
+            let receivedCoins = try response.content.decode([Coin].self)
+            assertCoinsEqual(receivedCoins, coinsAtPage1)
         }
     }
     
     func testGetCoinsPaginationEmpty() async throws {
-        _ = try await createBitcoin()
-        try app.test(.GET, "coins?page=2&per_page=2") { response in
+        // Setup
+        _ = try await createCoin()
+        // Action
+        try app.test(.GET, "coins?page=2") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let coins = try response.content.decode([Coin].self)
-            XCTAssertTrue(coins.isEmpty)
+            let receivedCoins = try response.content.decode([Coin].self)
+            XCTAssert(receivedCoins.isEmpty)
         }
     }
     
     func testGetCoinsInvalidPage() throws {
+        // Action
         try app.test(.GET, "coins?page=-1") { response in
+            // Assertions
             XCTAssertEqual(response.status, .badRequest)
         }
     }
     
     // Search Coins
     func testSearchCoinsSuccess() async throws {
-        let bitcoin = try await createBitcoin()
-        try app.test(.GET, "search?query=\(bitcoin.coinID)") { response in
+        // Setup
+        let coin = try await createCoin()
+        // Action
+        try app.test(.GET, "search?query=\(coin.id!)") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let coins = try response.content.decode([Coin].self)
-            XCTAssertEqual(coins.count, 1)
-            XCTAssertEqual(coins.first?.coinID, bitcoin.coinID)
+            let receivedCoins = try response.content.decode([Coin].self)
+            assertCoinsEqual(receivedCoins, [coin])
         }
     }
     
     func testSearchCoinsEmptyQuery() throws {
+        // Action
         try app.test(.GET, "search?query=") { response in
+            // Assertions
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssertTrue(response.body.string.contains("Query parameter 'query' is required"))
+            XCTAssert(response.body.string.contains("Query parameter 'query' is required"))
         }
     }
     
     // Get Market Data
     func testGetMarketDataSuccess() async throws {
-        let bitcoin = try await createBitcoin()
-        try app.test(.GET, "market-data?ids=\(bitcoin.coinID)") { response in
+        // Setup
+        let coin = try await createCoin()
+        // Action
+        try app.test(.GET, "market-data?ids=\(coin.id!)") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
             let marketData = try response.content.decode([String: MarketData].self)
-            XCTAssertEqual(marketData[bitcoin.coinID]?.currentPrice, bitcoin.currentPrice)
-            XCTAssertEqual(marketData[bitcoin.coinID]?.priceChange, bitcoin.priceChangePercentage24H)
+            assertMarketDataEqual(for: [coin], with: marketData)
         }
     }
     
     func testGetMarketDataMissingIDs() throws {
+        // Action
         try app.test(.GET, "market-data?ids=") { response in
+            // Assertions
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssertTrue(response.body.string.contains("Query parameter 'ids' is required"))
+            XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
         }
     }
     
     func testGetMarketDataWithInvalidIDs() async throws {
-        _ = try await createBitcoin()
+        // Setup
+        _ = try await createCoin()
+        // Action
         try app.test(.GET, "market-data?ids=nonexistentcoin") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
             let marketData = try response.content.decode([String: MarketData].self)
-            XCTAssertTrue(marketData.isEmpty)
+            XCTAssert(marketData.isEmpty)
         }
     }
     
-    // MARK: - Helpers
-    private func createCoin(
-        coinID: String,
-        coinName: String,
-        coinImage: String = "",
-        marketCapRank: Int64,
-        currentPrice: Double,
-        priceChangePercentage24H: Double
-    ) async throws -> Coin {
-        let coin = Coin(
-            coinID: coinID,
-            coinName: coinName,
-            coinImage: coinImage,
+    // MARK: - Helper Methods
+    // Make/Create Coin
+    private func makeCoin(
+        id: String = "coin-1",
+        name: String = "Coin 1",
+        imageData: Data? = nil,
+        marketCapRank: Int64 = .random(in: 1...2500),
+        currentPrice: Double = .random(in: 0.01...100000),
+        priceChange: Double = .random(in: -50...50)
+    ) -> Coin {
+        .init(
+            id: id,
+            name: name,
+            imageData: imageData,
             marketCapRank: marketCapRank,
             currentPrice: currentPrice,
-            priceChangePercentage24H: priceChangePercentage24H
+            priceChange: priceChange
         )
+    }
+    
+    private func makeCoins(count: Int = 10, at page: Int = 1) -> [Coin] {
+        let startIndex = (page - 1) * count + 1
+        return (startIndex..<startIndex + count).map { index in
+            makeCoin(
+                id: "coin-\(index)",
+                name: "Coin \(index)",
+                marketCapRank: Int64(index)
+            )
+        }
+    }
+    
+    private func createCoin(_ coin: Coin? = nil) async throws -> Coin {
+        let coin = coin ?? makeCoin()
         try await coin.save(on: app.db)
         return coin
     }
     
-    private func createBitcoin() async throws -> Coin {
-        try await createCoin(
-            coinID: "bitcoin",
-            coinName: "Bitcoin",
-            marketCapRank: 1,
-            currentPrice: 65000,
-            priceChangePercentage24H: -5
-        )
+    private func createCoins(count: Int = 10, at page: Int = 1) async throws -> [Coin] {
+        try await makeCoins(count: count, at: page).asyncMap { coin in
+            try await createCoin(coin)
+        }
     }
     
-    private func createEthereum() async throws -> Coin {
-        try await createCoin(
-            coinID: "ethereum",
-            coinName: "Ethereum",
-            marketCapRank: 2,
-            currentPrice: 2000,
-            priceChangePercentage24H: 2
-        )
+    // Assertions
+    private func assertCoinsEqual(_ coins: [Coin], _ expectedCoins: [Coin]) {
+        XCTAssertEqual(coins.count, expectedCoins.count)
+        for (index, _) in coins.enumerated() {
+            let coin = coins[index]
+            let expectedCoin = expectedCoins[index]
+            XCTAssertEqual(coin.id, expectedCoin.id)
+            XCTAssertEqual(coin.name, expectedCoin.name)
+            XCTAssertEqual(coin.imageData, expectedCoin.imageData)
+            XCTAssertEqual(coin.marketCapRank, expectedCoin.marketCapRank)
+            XCTAssertEqual(coin.currentPrice, expectedCoin.currentPrice)
+            XCTAssertEqual(coin.priceChange, expectedCoin.priceChange)
+        }
     }
     
-    private func createBNB() async throws -> Coin {
-        try await createCoin(
-            coinID: "binancecoin",
-            coinName: "BNB",
-            marketCapRank: 3,
-            currentPrice: 600,
-            priceChangePercentage24H: 10
-        )
-    }
-    
-    private func assertCoin(_ expected: Coin, _ actual: Coin) {
-        XCTAssertEqual(expected.coinID, actual.coinID)
-        XCTAssertEqual(expected.coinName, actual.coinName)
-        XCTAssertEqual(expected.coinImage, actual.coinImage)
-        XCTAssertEqual(expected.marketCapRank, actual.marketCapRank)
-        XCTAssertEqual(expected.currentPrice, actual.currentPrice)
-        XCTAssertEqual(expected.priceChangePercentage24H, actual.priceChangePercentage24H)
+    private func assertMarketDataEqual(for coins: [Coin], with marketData: [String: MarketData]) {
+        XCTAssertEqual(coins.count, marketData.count)
+        for coin in coins {
+            XCTAssertEqual(coin.currentPrice, marketData[coin.id!]!.currentPrice)
+            XCTAssertEqual(coin.priceChange, marketData[coin.id!]!.priceChange)
+        }
     }
 }

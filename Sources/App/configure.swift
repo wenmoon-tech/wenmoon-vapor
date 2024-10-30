@@ -13,19 +13,15 @@ public func configure(_ app: Application) async throws {
         app.databases.use(.postgres(configuration: postgresConfig), as: .psql)
     } else {
         let databaseName: String
-        let databasePort: Int
-
         if app.environment == .testing {
             databaseName = "wenmoon_db_test"
-            databasePort = 5433
         } else {
             databaseName = Environment.get("DATABASE_NAME") ?? "wenmoon_db"
-            databasePort = Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber
         }
 
         app.databases.use(.postgres(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-            port: databasePort,
+            port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
             username: Environment.get("DATABASE_USERNAME") ?? "arturxsan",
             password: Environment.get("DATABASE_PASSWORD") ?? "",
             database: databaseName
@@ -48,7 +44,7 @@ public func configure(_ app: Application) async throws {
 private func scheduleFetchingCoins(_ app: Application, maxPages: Int = 10, perPage: Int = 250) {
     _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(
         initialDelay: .zero,
-        delay: .seconds(60)
+        delay: .seconds(30)
     ) { task -> EventLoopFuture<Void> in
         let controller = CoinScannerController()
         let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
@@ -61,13 +57,11 @@ private func fetchMultiplePages(request: Request, controller: CoinScannerControl
     
     for page in 1...maxPages {
         future = future.flatMap {
-            // Fetch the coins for the current page
             controller.fetchCoins(on: request, page: page, perPage: perPage)
         }
         .flatMap {
-            // Wait for 60 seconds after fetching the current page (except the last one)
             if page < maxPages {
-                return request.eventLoop.scheduleTask(in: .seconds(60)) {}.futureResult
+                return request.eventLoop.scheduleTask(in: .seconds(30)) {}.futureResult
             }
             return request.eventLoop.makeSucceededFuture(())
         }

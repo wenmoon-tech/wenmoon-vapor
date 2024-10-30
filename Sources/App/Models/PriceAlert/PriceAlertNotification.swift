@@ -1,11 +1,11 @@
 import APNS
 
 struct PriceAlertNotification: APNSwiftNotification {
-    let coinID: String
+    let id: String
     let aps: APNSwiftPayload
     
-    init(coinID: String, aps: APNSwiftPayload) {
-        self.coinID = coinID
+    init(id: String, aps: APNSwiftPayload) {
+        self.id = id
         self.aps = aps
     }
 }

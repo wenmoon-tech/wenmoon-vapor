@@ -7,13 +7,13 @@ struct PriceAlertController {
         PriceAlert.query(on: req.db)
             .all()
             .flatMap { priceAlerts in
-                let priceAlertCoinIDs = Set(priceAlerts.compactMap { $0.coinID })
+                let priceAlertCoinIDs = Set(priceAlerts.compactMap { $0.id })
                 guard !priceAlertCoinIDs.isEmpty else {
                     return req.eventLoop.makeSucceededVoidFuture()
                 }
                 
                 return Coin.query(on: req.db)
-                    .filter(\.$coinID ~~ priceAlertCoinIDs)
+                    .filter(\.$id ~~ priceAlertCoinIDs)
                     .all()
                     .flatMap { coins in
                         let marketData = self.extractMarketData(from: coins)
@@ -27,8 +27,8 @@ struct PriceAlertController {
     }
     
     private func extractMarketData(from coins: [Coin]) -> [String: MarketData] {
-        Dictionary(uniqueKeysWithValues: coins.map { coin in
-            (coin.coinID, MarketData(currentPrice: coin.currentPrice, priceChange: coin.priceChangePercentage24H))
+        Dictionary(uniqueKeysWithValues: coins.compactMap { coin in
+            (coin.id!, MarketData(currentPrice: coin.currentPrice, priceChange: coin.priceChange))
         })
     }
     
@@ -41,7 +41,8 @@ struct PriceAlertController {
         var deleteAlertFutures: [EventLoopFuture<Void>] = []
         
         for priceAlert in priceAlerts {
-            guard let currentPrice = marketData[priceAlert.coinID]?.currentPrice,
+            guard let id = priceAlert.id,
+                  let currentPrice = marketData[id]?.currentPrice,
                   let deviceToken = priceAlert.deviceToken else {
                 continue
             }
@@ -82,10 +83,10 @@ struct PriceAlertController {
     ) -> EventLoopFuture<Void> {
         let alert = APNSwiftAlert(
             title: "Price Alert",
-            body: "Your price target of \(priceAlert.targetPrice)$ for \(priceAlert.coinName) is reached!"
+            body: "Your price target of \(priceAlert.targetPrice)$ for \(priceAlert.name) is reached!"
         )
         let aps = APNSwiftPayload(alert: alert, badge: badge, sound: .normal("default"))
-        let notification = PriceAlertNotification(coinID: priceAlert.coinID, aps: aps)
+        let notification = PriceAlertNotification(id: priceAlert.id!, aps: aps)
         
         return req.apns.send(notification, to: deviceToken)
             .map { response in

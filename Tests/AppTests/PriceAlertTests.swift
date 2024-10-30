@@ -21,80 +21,96 @@ final class PriceAlertTests: XCTestCase {
     // MARK: - Tests
     // Get Price Alerts
     func testGetPriceAlertsSuccess() async throws {
-        let bitcoinPriceAlert = try await createBitcoinPriceAlert()
-        let ethereumPriceAlert = try await createEthereumPriceAlert()
+        // Setup
+        let priceAlerts = try await createPriceAlerts()
+        // Action
         try app.test(.GET, "price-alerts") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let priceAlerts = try response.content.decode([PriceAlert].self)
-            XCTAssertEqual(priceAlerts.count, 2)
-            assertPriceAlert(priceAlerts.first!, bitcoinPriceAlert)
-            assertPriceAlert(priceAlerts.last!, ethereumPriceAlert)
+            let receivedPriceAlerts = try response.content.decode([PriceAlert].self)
+            assertPriceAlertsEqual(receivedPriceAlerts, priceAlerts)
         }
     }
     
     func testGetPriceAlertsEmptyArray() throws {
+        // Action
         try app.test(.GET, "price-alerts") { response in
+            // Assertions
             XCTAssertEqual(response.status, .ok)
-            let priceAlerts = try response.content.decode([PriceAlert].self)
-            XCTAssertTrue(priceAlerts.isEmpty)
+            let receivedPriceAlerts = try response.content.decode([PriceAlert].self)
+            XCTAssert(receivedPriceAlerts.isEmpty)
         }
     }
     
     func testGetSpecificPriceAlerts() async throws {
-        let bitcoinPriceAlert = try await createBitcoinPriceAlert()
-        // Test for existing price alert
+        // Setup
+        let priceAlert = try await createPriceAlert()
+        // Action: Fetch alerts with the correct device token
         try app.test(.GET, "price-alerts", headers: headers) { response in
+            // Assertions: Check that the fetched alert matches the created one
             XCTAssertEqual(response.status, .ok)
-            let priceAlerts = try response.content.decode([PriceAlert].self)
-            XCTAssertEqual(priceAlerts.count, 1)
-            assertPriceAlert(priceAlerts.first!, bitcoinPriceAlert)
+            let receivedPriceAlerts = try response.content.decode([PriceAlert].self)
+            assertPriceAlertsEqual(receivedPriceAlerts, [priceAlert])
         }
-        // Test for non-existing price alert
+        
+        // Action: Fetch alerts with a non-existing device token
         headers = HTTPHeaders([("X-Device-ID", "non-existing-device-token")])
         try app.test(.GET, "price-alerts", headers: headers) { response in
+            // Assertions: Check that no alerts are returned
             XCTAssertEqual(response.status, .ok)
-            let priceAlerts = try response.content.decode([PriceAlert].self)
-            XCTAssertTrue(priceAlerts.isEmpty)
+            let receivedPriceAlerts = try response.content.decode([PriceAlert].self)
+            XCTAssert(receivedPriceAlerts.isEmpty)
         }
     }
     
     // Post Price Alert
     func testPostPriceAlertSuccess() async throws {
-        let bitcoinPriceAlert = makeBitcoinPriceAlert()
-        let postedPriceAlert = try postPriceAlert(bitcoinPriceAlert)
+        // Setup
+        let priceAlert = makePriceAlert()
+        // Action
+        let postedPriceAlert = try postPriceAlert(priceAlert)
         try app.test(.GET, "price-alerts", afterResponse: { response in
-            let priceAlerts = try response.content.decode([PriceAlert].self)
-            XCTAssertEqual(priceAlerts.count, 1)
-            assertPriceAlert(postedPriceAlert!, priceAlerts.first!)
+            // Assertions
+            let receivedPriceAlerts = try response.content.decode([PriceAlert].self)
+            assertPriceAlertsEqual(receivedPriceAlerts, [postedPriceAlert])
         })
     }
     
     func testPostDuplicatePriceAlert() async throws {
-        let bitcoinPriceAlert = makeBitcoinPriceAlert()
-        _ = try postPriceAlert(bitcoinPriceAlert)
+        // Setup
+        let priceAlert = makePriceAlert()
+        // Action
+        _ = try postPriceAlert(priceAlert)
         try app.test(.POST, "price-alert", headers: headers, beforeRequest: { req in
-            try req.content.encode(bitcoinPriceAlert)
+            try req.content.encode(priceAlert)
         }, afterResponse: { response in
+            // Assertions
             XCTAssertEqual(response.status, .conflict)
             XCTAssertTrue(response.body.string.contains("Price alert already exists for this coin and device."))
         })
     }
     
     func testPostEmptyPriceAlert() throws {
+        // Setup
+        let emptyPriceAlert = makePriceAlert(id: "")
+        // Action
         try app.test(.POST, "price-alert", beforeRequest: { req in
-            let emptyPriceAlert = makeEmptyPriceAlert()
             try req.content.encode(emptyPriceAlert)
         }, afterResponse: { response in
+            // Assertions
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssertTrue(response.body.string.contains("coin_id parameter must not be empty"))
+            XCTAssertTrue(response.body.string.contains("id parameter must not be empty"))
         })
     }
     
     func testPostInvalidPriceAlert() async throws {
-        let invalidPriceAlert = makeInvalidPriceAlert()
+        // Setup
+        let invalidPriceAlert = makePriceAlert(targetPrice: -1)
+        // Action
         try app.test(.POST, "price-alert", beforeRequest: { req in
             try req.content.encode(invalidPriceAlert)
         }, afterResponse: { response in
+            // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssertTrue(response.body.string.contains("target_price must be greater than zero"))
         })
@@ -102,137 +118,96 @@ final class PriceAlertTests: XCTestCase {
     
     // Delete Price Alert
     func testDeletePriceAlert() async throws {
-        let bitcoinPriceAlert = try await createBitcoinPriceAlert()
-        // Successful deletion
-        try app.test(.DELETE, "price-alert/\(bitcoinPriceAlert.coinID)", headers: headers) { response in
+        // Setup
+        let priceAlert = try await createPriceAlert()
+        // Action: Delete the price alert with a valid ID and headers
+        try app.test(.DELETE, "price-alert/\(priceAlert.id!)", headers: headers) { response in
+            // Assertions: Confirm deletion and check the response
             XCTAssertEqual(response.status, .ok)
             let deletedPriceAlert = try response.content.decode(PriceAlert.self)
-            assertPriceAlert(bitcoinPriceAlert, deletedPriceAlert)
-            // Confirm deletion
+            assertPriceAlertsEqual([deletedPriceAlert], [priceAlert])
+            
+            // Action: Verify deletion by fetching all alerts
             try app.test(.GET, "price-alerts") { secondResponse in
+                // Assertions: Check that no alerts remain
                 XCTAssertEqual(secondResponse.status, .ok)
                 let priceAlerts = try secondResponse.content.decode([PriceAlert].self)
                 XCTAssertEqual(priceAlerts.count, .zero)
             }
         }
-        // Invalid ID deletion
+        
+        // Action: Attempt to delete a non-existing alert
         let invalidCoinID = "invalid-coin-id"
         try app.test(.DELETE, "price-alert/\(invalidCoinID)", headers: headers) { response in
+            // Assertions: Check for not found status and error message
             XCTAssertEqual(response.status, .notFound)
             XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin id: \(invalidCoinID)"))
         }
-        // Missing header
-        try app.test(.DELETE, "price-alert/\(bitcoinPriceAlert.coinID)") { response in
+        
+        // Action: Attempt deletion without providing the required header
+        try app.test(.DELETE, "price-alert/\(priceAlert.id!)") { response in
+            // Assertions: Check for bad request status due to missing header
             XCTAssertEqual(response.status, .badRequest)
             XCTAssertTrue(response.body.string.contains("X-Device-ID header missing"))
         }
     }
     
-    // MARK: - Helpers
+    // MARK: - Helper Methods
+    // Make/Create Price Alert
     private func makePriceAlert(
-        coinID: String = "",
-        coinName: String = "",
-        targetPrice: Double = .zero,
-        targetDirection: PriceAlert.TargetDirection = .below,
-        deviceToken: String = ""
+        id: String = "price-alert-1",
+        name: String = "Price Alert 1",
+        targetPrice: Double = .random(in: 0.01...100000),
+        targetDirection: PriceAlert.TargetDirection = Bool.random() ? .below : .above,
+        deviceToken: String = "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030"
     ) -> PriceAlert {
-        PriceAlert(
-            coinID: coinID,
-            coinName: coinName,
+        .init(
+            id: id,
+            name: name,
             targetPrice: targetPrice,
             targetDirection: targetDirection,
             deviceToken: deviceToken
         )
     }
     
-    private func makePredefinedPriceAlert(
-        coinID: String,
-        coinName: String,
-        targetPrice: Double,
-        targetDirection: PriceAlert.TargetDirection,
-        deviceToken: String
-    ) -> PriceAlert {
-        makePriceAlert(
-            coinID: coinID,
-            coinName: coinName,
-            targetPrice: targetPrice,
-            targetDirection: targetDirection,
-            deviceToken: deviceToken
-        )
+    private func makePriceAlerts(count: Int = 10) -> [PriceAlert] {
+        (1...count).map { index in
+            makePriceAlert(
+                id: "price-alert-\(index)",
+                name: "Price Alert \(index)"
+            )
+        }
     }
     
-    private func makeBitcoinPriceAlert() -> PriceAlert {
-        makePredefinedPriceAlert(
-            coinID: "bitcoin",
-            coinName: "Bitcoin",
-            targetPrice: 70000,
-            targetDirection: .above,
-            deviceToken: "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030"
-        )
-    }
-    
-    private func makeInvalidPriceAlert() -> PriceAlert {
-        makePredefinedPriceAlert(
-            coinID: "bitcoin",
-            coinName: "Bitcoin",
-            targetPrice: -1,
-            targetDirection: .above,
-            deviceToken: "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030"
-        )
-    }
-    
-    private func makeEmptyPriceAlert() -> PriceAlert {
-        makePriceAlert()
-    }
-    
-    private func createPriceAlert(
-        coinID: String,
-        coinName: String,
-        targetPrice: Double,
-        targetDirection: PriceAlert.TargetDirection,
-        deviceToken: String
-    ) async throws -> PriceAlert {
-        let priceAlert = makePriceAlert(
-            coinID: coinID,
-            coinName: coinName,
-            targetPrice: targetPrice,
-            targetDirection: targetDirection,
-            deviceToken: deviceToken
-        )
+    private func createPriceAlert(_ priceAlert: PriceAlert? = nil) async throws -> PriceAlert {
+        let priceAlert = priceAlert ?? makePriceAlert()
         try await priceAlert.save(on: app.db)
         return priceAlert
     }
     
-    private func createBitcoinPriceAlert() async throws -> PriceAlert {
-        try await createPriceAlert(
-            coinID: "bitcoin",
-            coinName: "Bitcoin",
-            targetPrice: 70000,
-            targetDirection: .above,
-            deviceToken: "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870030"
-        )
+    private func createPriceAlerts(count: Int = 10) async throws -> [PriceAlert] {
+        try await makePriceAlerts(count: count).asyncMap { priceAlert in
+            try await createPriceAlert(priceAlert)
+        }
     }
     
-    private func createEthereumPriceAlert() async throws -> PriceAlert {
-        try await createPriceAlert(
-            coinID: "ethereum",
-            coinName: "Ethereum",
-            targetPrice: 2000,
-            targetDirection: .below,
-            deviceToken: "98a6de3ab414ef58b9aa38e8cf1570a4d329e3235ec8c0f343fe75ae51870031"
-        )
+    // Assertions
+    private func assertPriceAlertsEqual(_ priceAlerts: [PriceAlert], _ expectedPriceAlerts: [PriceAlert]) {
+        XCTAssertEqual(priceAlerts.count, expectedPriceAlerts.count)
+        for (index, _) in priceAlerts.enumerated() {
+            let priceAlert = priceAlerts[index]
+            let expectedPriceAlert = expectedPriceAlerts[index]
+            XCTAssertEqual(priceAlert.id, expectedPriceAlert.id)
+            XCTAssertEqual(priceAlert.name, expectedPriceAlert.name)
+            XCTAssertEqual(priceAlert.targetPrice, expectedPriceAlert.targetPrice)
+            XCTAssertEqual(priceAlert.targetDirection, expectedPriceAlert.targetDirection)
+            XCTAssertEqual(priceAlert.deviceToken, expectedPriceAlert.deviceToken)
+        }
     }
     
-    private func assertPriceAlert(_ expected: PriceAlert, _ actual: PriceAlert) {
-        XCTAssertEqual(expected.coinID, actual.coinID)
-        XCTAssertEqual(expected.coinName, actual.coinName)
-        XCTAssertEqual(expected.targetPrice, actual.targetPrice)
-        XCTAssertEqual(expected.targetDirection, actual.targetDirection)
-        XCTAssertEqual(expected.deviceToken, actual.deviceToken)
-    }
-    
-    private func postPriceAlert(_ priceAlert: PriceAlert, expectedStatus: HTTPResponseStatus = .ok) throws -> PriceAlert? {
-        var receivedPriceAlert: PriceAlert?
+    // Post Price Alert
+    private func postPriceAlert(_ priceAlert: PriceAlert, expectedStatus: HTTPResponseStatus = .ok) throws -> PriceAlert {
+        var receivedPriceAlert: PriceAlert!
         try app.test(.POST, "price-alert", headers: headers, beforeRequest: { req in
             try req.content.encode(priceAlert)
         }, afterResponse: { response in

@@ -3,13 +3,12 @@ import Fluent
 struct CreateCoin: AsyncMigration {
     func prepare(on database: Database) async throws {
         try await database.schema("coins")
-            .id()
-            .field("coin_id", .string, .required)
-            .field("coin_name", .string, .required)
-            .field("coin_image", .string, .required)
-            .field("market_cap_rank", .int64)
-            .field("current_price", .double)
-            .field("price_change_percentage_24h", .double)
+            .field("id", .string, .required)
+            .field("name", .string, .required)
+            .field("image_data", .data)
+            .field("market_cap_rank", .int64, .required)
+            .field("current_price", .double, .required)
+            .field("price_change", .double, .required)
             .create()
     }
     

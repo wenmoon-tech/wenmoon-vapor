@@ -39,23 +39,34 @@ struct CoinScannerController {
     private func processCoinsData(_ data: ByteBuffer, on req: Request, page: Int) -> EventLoopFuture<Void> {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        
         do {
-            let coins = try decoder.decode([Coin].self, from: Data(buffer: data))
+            let coins = try decoder.decode([CoinResponse].self, from: Data(buffer: data))
             let dbUpserts = coins.map { coin in
                 return Coin.query(on: req.db)
-                    .filter(\.$coinID == coin.coinID)
+                    .filter(\.$id == coin.id)
                     .first()
                     .flatMap { existingCoin in
+                        let marketCapRank = coin.marketCapRank ?? .max
+                        let currentPrice = coin.currentPrice ?? .zero
+                        let priceChange = coin.priceChangePercentage24H ?? .zero
+                        
                         if let existingCoin = existingCoin {
-                            existingCoin.coinName = coin.coinName
-                            existingCoin.coinImage = coin.coinImage
-                            existingCoin.marketCapRank = coin.marketCapRank
-                            existingCoin.currentPrice = coin.currentPrice
-                            existingCoin.priceChangePercentage24H = coin.priceChangePercentage24H
+                            existingCoin.marketCapRank = marketCapRank
+                            existingCoin.currentPrice = currentPrice
+                            existingCoin.priceChange = priceChange
                             return existingCoin.update(on: req.db)
                         } else {
-                            return coin.create(on: req.db)
+                            print("New coin: \(coin.id)")
+                            return fetchImageData(for: coin, on: req).flatMap { imageData in
+                                let newCoin = Coin()
+                                newCoin.id = coin.id
+                                newCoin.name = coin.name
+                                newCoin.imageData = imageData
+                                newCoin.marketCapRank = marketCapRank
+                                newCoin.currentPrice = currentPrice
+                                newCoin.priceChange = priceChange
+                                return newCoin.create(on: req.db)
+                            }
                         }
                     }
             }
@@ -63,6 +74,23 @@ struct CoinScannerController {
             return req.eventLoop.flatten(dbUpserts).transform(to: ())
         } catch {
             return req.eventLoop.makeFailedFuture(error)
+        }
+    }
+    
+    private func fetchImageData(for coin: CoinResponse, on req: Request) -> EventLoopFuture<Data?> {
+        if let imageURL = coin.image {
+            return loadImage(from: imageURL, on: req)
+        } else {
+            return req.eventLoop.makeSucceededFuture(nil)
+        }
+    }
+    
+    private func loadImage(from url: String, on req: Request) -> EventLoopFuture<Data?> {
+        req.client.get(URI(string: url)).flatMapThrowing { response in
+            guard response.status == .ok, let body = response.body else {
+                throw Abort(.internalServerError, reason: "Failed to load image")
+            }
+            return Data(buffer: body)
         }
     }
 }

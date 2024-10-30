@@ -28,31 +28,31 @@ func routes(_ app: Application) throws {
         return Coin.query(on: req.db)
             .group(.or) { group in
                 group
-                    .filter(\.$coinName ~~ searchTerm)
-                    .filter(\.$coinID ~~ searchTerm)
+                    .filter(\.$name ~~ searchTerm)
+                    .filter(\.$id ~~ searchTerm)
             }
             .sort(\.$marketCapRank, .ascending)
             .all()
     }
     
     app.get("market-data") { req -> EventLoopFuture<[String: MarketData]> in
-        guard let coinIDsString = try? req.query.get(String.self, at: "ids"), !coinIDsString.isEmpty else {
+        guard let idsString = try? req.query.get(String.self, at: "ids"), !idsString.isEmpty else {
             return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'ids' is required"))
         }
         
-        let coinIDs = coinIDsString.split(separator: ",").map { String($0) }
+        let ids = idsString.split(separator: ",").map { String($0) }
         
         return Coin.query(on: req.db)
-            .filter(\.$coinID ~~ coinIDs)
+            .filter(\.$id ~~ ids)
             .all()
             .map { coins in
                 var marketDataDict: [String: MarketData] = [:]
                 for coin in coins {
                     let marketData = MarketData(
                         currentPrice: coin.currentPrice,
-                        priceChange: coin.priceChangePercentage24H
+                        priceChange: coin.priceChange
                     )
-                    marketDataDict[coin.coinID] = marketData
+                    marketDataDict[coin.id!] = marketData
                 }
                 return marketDataDict
             }
@@ -74,8 +74,8 @@ func routes(_ app: Application) throws {
         do {
             let priceAlert = try req.content.decode(PriceAlert.self)
             
-            guard !priceAlert.coinID.isEmpty else {
-                throw Abort(.badRequest, reason: "coin_id parameter must not be empty")
+            guard !priceAlert.id!.isEmpty else {
+                throw Abort(.badRequest, reason: "id parameter must not be empty")
             }
             
             guard priceAlert.targetPrice > 0 else {
@@ -90,7 +90,7 @@ func routes(_ app: Application) throws {
             
             return PriceAlert.query(on: req.db)
                 .filter(\.$deviceToken == deviceToken)
-                .filter(\.$coinID == priceAlert.coinID)
+                .filter(\.$id == priceAlert.id!)
                 .first()
                 .flatMap { existingPriceAlert in
                     if existingPriceAlert != nil {
@@ -115,8 +115,8 @@ func routes(_ app: Application) throws {
         }
     }
     
-    app.delete("price-alert", ":coin_id") { req -> EventLoopFuture<Response> in
-        guard let coinID = req.parameters.get("coin_id") else {
+    app.delete("price-alert", ":id") { req -> EventLoopFuture<Response> in
+        guard let id = req.parameters.get("id") else {
             throw Abort(.badRequest)
         }
         
@@ -126,7 +126,7 @@ func routes(_ app: Application) throws {
         
         return PriceAlert.query(on: req.db)
             .filter(\.$deviceToken == deviceToken)
-            .filter(\.$coinID == coinID)
+            .filter(\.$id == id)
             .first()
             .flatMap { priceAlert -> EventLoopFuture<Response> in
                 guard let priceAlert else {
@@ -134,7 +134,7 @@ func routes(_ app: Application) throws {
                         Abort(
                             .notFound,
                             headers: headers,
-                            reason: "Could not find price alert with the following coin id: \(coinID)"
+                            reason: "Could not find price alert with the following coin id: \(id)"
                         )
                     )
                 }
