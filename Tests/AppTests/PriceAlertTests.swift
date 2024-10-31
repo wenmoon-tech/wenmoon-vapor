@@ -20,9 +20,10 @@ final class PriceAlertTests: XCTestCase {
     
     // MARK: - Tests
     // Get Price Alerts
-    func testGetPriceAlertsSuccess() async throws {
+    func testGetPriceAlerts_success() async throws {
         // Setup
         let priceAlerts = try await createPriceAlerts()
+        
         // Action
         try app.test(.GET, "price-alerts") { response in
             // Assertions
@@ -32,7 +33,7 @@ final class PriceAlertTests: XCTestCase {
         }
     }
     
-    func testGetPriceAlertsEmptyArray() throws {
+    func testGetPriceAlerts_emptyResult() throws {
         // Action
         try app.test(.GET, "price-alerts") { response in
             // Assertions
@@ -42,9 +43,10 @@ final class PriceAlertTests: XCTestCase {
         }
     }
     
-    func testGetSpecificPriceAlerts() async throws {
+    func testGetPriceAlerts_specificDeviceToken() async throws {
         // Setup
         let priceAlert = try await createPriceAlert()
+        
         // Action: Fetch alerts with the correct device token
         try app.test(.GET, "price-alerts", headers: headers) { response in
             // Assertions: Check that the fetched alert matches the created one
@@ -64,9 +66,10 @@ final class PriceAlertTests: XCTestCase {
     }
     
     // Post Price Alert
-    func testPostPriceAlertSuccess() async throws {
+    func testPostPriceAlert_success() async throws {
         // Setup
         let priceAlert = makePriceAlert()
+        
         // Action
         let postedPriceAlert = try postPriceAlert(priceAlert)
         try app.test(.GET, "price-alerts", afterResponse: { response in
@@ -76,9 +79,10 @@ final class PriceAlertTests: XCTestCase {
         })
     }
     
-    func testPostDuplicatePriceAlert() async throws {
+    func testPostPriceAlert_duplication() async throws {
         // Setup
         let priceAlert = makePriceAlert()
+        
         // Action
         _ = try postPriceAlert(priceAlert)
         try app.test(.POST, "price-alert", headers: headers, beforeRequest: { req in
@@ -90,9 +94,10 @@ final class PriceAlertTests: XCTestCase {
         })
     }
     
-    func testPostEmptyPriceAlert() throws {
+    func testPostPriceAlert_invalidID() throws {
         // Setup
         let emptyPriceAlert = makePriceAlert(id: "")
+        
         // Action
         try app.test(.POST, "price-alert", beforeRequest: { req in
             try req.content.encode(emptyPriceAlert)
@@ -103,9 +108,10 @@ final class PriceAlertTests: XCTestCase {
         })
     }
     
-    func testPostInvalidPriceAlert() async throws {
+    func testPostPriceAlert_invalidTargetPrice() async throws {
         // Setup
         let invalidPriceAlert = makePriceAlert(targetPrice: -1)
+        
         // Action
         try app.test(.POST, "price-alert", beforeRequest: { req in
             try req.content.encode(invalidPriceAlert)
@@ -117,9 +123,10 @@ final class PriceAlertTests: XCTestCase {
     }
     
     // Delete Price Alert
-    func testDeletePriceAlert() async throws {
+    func testDeletePriceAlert_success() async throws {
         // Setup
         let priceAlert = try await createPriceAlert()
+        
         // Action: Delete the price alert with a valid ID and headers
         try app.test(.DELETE, "price-alert/\(priceAlert.id!)", headers: headers) { response in
             // Assertions: Confirm deletion and check the response
@@ -135,7 +142,9 @@ final class PriceAlertTests: XCTestCase {
                 XCTAssertEqual(priceAlerts.count, .zero)
             }
         }
-        
+    }
+    
+    func testDeletePriceAlert_invalidID() async throws {
         // Action: Attempt to delete a non-existing alert
         let invalidCoinID = "invalid-coin-id"
         try app.test(.DELETE, "price-alert/\(invalidCoinID)", headers: headers) { response in
@@ -143,6 +152,11 @@ final class PriceAlertTests: XCTestCase {
             XCTAssertEqual(response.status, .notFound)
             XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin id: \(invalidCoinID)"))
         }
+    }
+    
+    func testDeletePriceAlert_missingHeader() async throws {
+        // Setup
+        let priceAlert = try await createPriceAlert()
         
         // Action: Attempt deletion without providing the required header
         try app.test(.DELETE, "price-alert/\(priceAlert.id!)") { response in

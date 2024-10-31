@@ -18,9 +18,10 @@ final class CoinTests: XCTestCase {
     
     // MARK: - Tests
     // Get Coins
-    func testGetCoinsSuccess() async throws {
+    func testGetCoins_success() async throws {
         // Setup
         let coins = try await createCoins()
+        
         // Action
         try app.test(.GET, "coins") { response in
             // Assertions
@@ -30,11 +31,12 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetSpecificCoinsByIDsSuccess() async throws {
+    func testGetCoins_byIDs() async throws {
         // Setup
         let coin1 = try await createCoin(makeCoin(id: "coin-1", marketCapRank: 1))
         let coin2 = try await createCoin(makeCoin(id: "coin-2", marketCapRank: 2))
         let coin3 = try await createCoin(makeCoin(id: "coin-3", marketCapRank: 3))
+        
         // Action
         try app.test(.GET, "coins?ids=coin-1,coin-2") { response in
             // Assertions
@@ -45,9 +47,10 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetSpecificCoinsWithInvalidOrEmptyIDs() async throws {
+    func testGetCoins_invalidOrEmptyIDs() async throws {
         // Setup
         _ = try await createCoin()
+        
         // Action: Fetch coins with a nonexistent ID
         try app.test(.GET, "coins?ids=nonexistent-coin") { response in
             // Assertions: Check that no coins are returned for a nonexistent ID
@@ -55,6 +58,7 @@ final class CoinTests: XCTestCase {
             let receivedCoins = try response.content.decode([Coin].self)
             XCTAssertTrue(receivedCoins.isEmpty)
         }
+        
         // Action: Fetch coins with an empty `ids` parameter
         try app.test(.GET, "coins?ids=") { response in
             // Assertions: Check that no coins are returned for an empty IDs parameter
@@ -64,10 +68,11 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetCoinsPaginationSuccess() async throws {
+    func testGetCoins_pagination() async throws {
         // Setup
         let coinsAtPage1 = try await createCoins(at: 1)
         _ = try await createCoins(at: 2)
+        
         // Action
         try app.test(.GET, "coins?page=1&per_page=10") { response in
             // Assertions
@@ -77,30 +82,33 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetCoinsPaginationEmpty() async throws {
+    func testGetCoins_emptyPage() async throws {
         // Setup
         _ = try await createCoin()
-        // Action
+        
+        // Action: Request page 2, which should have no results
         try app.test(.GET, "coins?page=2") { response in
-            // Assertions
+            // Assertions: Check that page 2 returns an empty list
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
             XCTAssert(receivedCoins.isEmpty)
         }
     }
     
-    func testGetCoinsInvalidPage() throws {
-        // Action
-        try app.test(.GET, "coins?page=-1") { response in
-            // Assertions
+    func testGetCoins_invalidParams() async throws {
+        // Action: Request an invalid page and per_page values
+        try app.test(.GET, "coins?page=-1&per_page=-1") { response in
+            // Assertions: Check that a bad request status is returned
             XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Page and per_page must be positive integers."))
         }
     }
     
     // Search Coins
-    func testSearchCoinsSuccess() async throws {
+    func testSearchCoins_success() async throws {
         // Setup
         let coin = try await createCoin()
+        
         // Action
         try app.test(.GET, "search?query=\(coin.id!)") { response in
             // Assertions
@@ -110,7 +118,7 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testSearchCoinsEmptyQuery() throws {
+    func testSearchCoins_emptyQuery() throws {
         // Action
         try app.test(.GET, "search?query=") { response in
             // Assertions
@@ -120,9 +128,10 @@ final class CoinTests: XCTestCase {
     }
     
     // Get Market Data
-    func testGetMarketDataSuccess() async throws {
+    func testGetMarketData_success() async throws {
         // Setup
         let coin = try await createCoin()
+        
         // Action
         try app.test(.GET, "market-data?ids=\(coin.id!)") { response in
             // Assertions
@@ -132,24 +141,23 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetMarketDataMissingIDs() throws {
-        // Action
-        try app.test(.GET, "market-data?ids=") { response in
-            // Assertions
-            XCTAssertEqual(response.status, .badRequest)
-            XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
-        }
-    }
-    
-    func testGetMarketDataWithInvalidIDs() async throws {
+    func testGetMarketData_invalidOrEmptyIDs() async throws {
         // Setup
         _ = try await createCoin()
-        // Action
-        try app.test(.GET, "market-data?ids=nonexistentcoin") { response in
-            // Assertions
+        
+        // Action: Fetch market data with a nonexistent ID
+        try app.test(.GET, "market-data?ids=nonexistent-coin") { response in
+            // Assertions: Check that no market data is returned for a nonexistent ID
             XCTAssertEqual(response.status, .ok)
             let marketData = try response.content.decode([String: MarketData].self)
             XCTAssert(marketData.isEmpty)
+        }
+        
+        // Action: Fetch market data with an empty `ids` parameter
+        try app.test(.GET, "market-data?ids=") { response in
+            // Assertions: Check that no market data is returned for an empty IDs parameter
+            XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
         }
     }
     
