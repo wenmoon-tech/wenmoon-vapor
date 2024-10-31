@@ -4,6 +4,16 @@ import Vapor
 func routes(_ app: Application) throws {
     // MARK: - Coins
     app.get("coins") { req -> EventLoopFuture<[Coin]> in
+        // Check if `ids` query parameter is provided
+        if let idsString = try? req.query.get(String.self, at: "ids") {
+            let ids = idsString.split(separator: ",").map { String($0) }
+            return Coin.query(on: req.db)
+                .filter(\.$id ~~ ids)
+                .sort(\.$marketCapRank, .ascending)
+                .all()
+        }
+        
+        // Default to pagination if `ids` is not provided
         let page = (try? req.query.get(Int.self, at: "page")) ?? 1
         let perPage = (try? req.query.get(Int.self, at: "per_page")) ?? 250
         

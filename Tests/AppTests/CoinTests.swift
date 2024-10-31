@@ -30,6 +30,40 @@ final class CoinTests: XCTestCase {
         }
     }
     
+    func testGetSpecificCoinsByIDsSuccess() async throws {
+        // Setup
+        let coin1 = try await createCoin(makeCoin(id: "coin-1", marketCapRank: 1))
+        let coin2 = try await createCoin(makeCoin(id: "coin-2", marketCapRank: 2))
+        let coin3 = try await createCoin(makeCoin(id: "coin-3", marketCapRank: 3))
+        // Action
+        try app.test(.GET, "coins?ids=coin-1,coin-2") { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let receivedCoins = try response.content.decode([Coin].self)
+            assertCoinsEqual(receivedCoins, [coin1, coin2])
+            XCTAssertFalse(receivedCoins.contains { $0.id == coin3.id })
+        }
+    }
+    
+    func testGetSpecificCoinsWithInvalidOrEmptyIDs() async throws {
+        // Setup
+        _ = try await createCoin()
+        // Action: Fetch coins with a nonexistent ID
+        try app.test(.GET, "coins?ids=nonexistent-coin") { response in
+            // Assertions: Check that no coins are returned for a nonexistent ID
+            XCTAssertEqual(response.status, .ok)
+            let receivedCoins = try response.content.decode([Coin].self)
+            XCTAssertTrue(receivedCoins.isEmpty)
+        }
+        // Action: Fetch coins with an empty `ids` parameter
+        try app.test(.GET, "coins?ids=") { response in
+            // Assertions: Check that no coins are returned for an empty IDs parameter
+            XCTAssertEqual(response.status, .ok)
+            let receivedCoins = try response.content.decode([Coin].self)
+            XCTAssertTrue(receivedCoins.isEmpty)
+        }
+    }
+    
     func testGetCoinsPaginationSuccess() async throws {
         // Setup
         let coinsAtPage1 = try await createCoins(at: 1)
