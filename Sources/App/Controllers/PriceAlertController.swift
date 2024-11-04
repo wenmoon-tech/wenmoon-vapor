@@ -3,6 +3,11 @@ import APNS
 import Vapor
 
 struct PriceAlertController {
+    // MARK: - Singleton
+    static let shared: PriceAlertController = .init()
+    private init() {}
+    
+    // MARK: - Internal Methods
     func checkPriceForAlerts(on req: Request) -> EventLoopFuture<Void> {
         PriceAlert.query(on: req.db)
             .all()
@@ -26,9 +31,16 @@ struct PriceAlertController {
             }
     }
     
+    // MARK: - Private Methods
     private func extractMarketData(from coins: [Coin]) -> [String: MarketData] {
         Dictionary(uniqueKeysWithValues: coins.compactMap { coin in
-            (coin.id!, MarketData(currentPrice: coin.currentPrice, priceChange: coin.priceChange))
+            (
+                coin.id!,
+                MarketData(
+                    currentPrice: coin.currentPrice,
+                    priceChangePercentage24H: coin.priceChangePercentage24H
+                )
+            )
         })
     }
     

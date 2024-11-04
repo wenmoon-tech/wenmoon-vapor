@@ -34,42 +34,11 @@ public func configure(_ app: Application) async throws {
     try routes(app)
     
     if app.environment != .testing {
-        scheduleFetchingCoins(app)
+        CoinScannerController.shared.startFetchingCoinsPeriodically(app: app)
     }
 
     //try configureAPNS(app)
     //schedulePriceCheck(app)
-}
-
-private func scheduleFetchingCoins(_ app: Application, maxPages: Int = 10, perPage: Int = 250) {
-    _ = app.eventLoopGroup.next().scheduleRepeatedAsyncTask(
-        initialDelay: .zero,
-        delay: .seconds(30)
-    ) { task -> EventLoopFuture<Void> in
-        let controller = CoinScannerController()
-        let request = Request(application: app, logger: app.logger, on: app.eventLoopGroup.next())
-        return fetchMultiplePages(request: request, controller: controller, maxPages: maxPages, perPage: perPage)
-    }
-}
-
-private func fetchMultiplePages(request: Request, controller: CoinScannerController, maxPages: Int, perPage: Int) -> EventLoopFuture<Void> {
-    var future: EventLoopFuture<Void> = request.eventLoop.makeSucceededFuture(())
-    
-    for page in 1...maxPages {
-        future = future.flatMap {
-            controller.fetchCoins(on: request, page: page, perPage: perPage)
-        }
-        .flatMap {
-            if page < maxPages {
-                return request.eventLoop.scheduleTask(in: .seconds(30)) {}.futureResult
-            }
-            return request.eventLoop.makeSucceededFuture(())
-        }
-    }
-    return future.flatMap {
-        print("All \(maxPages) pages have been fetched.")
-        return request.eventLoop.makeSucceededFuture(())
-    }
 }
 
 //private func configureAPNS(_ app: Application) throws {

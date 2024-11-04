@@ -10,33 +10,33 @@ final class Coin: Model, Content {
     @Field(key: "name")
     var name: String
     
-    @Field(key: "image_data")
-    var imageData: Data?
+    @Field(key: "image")
+    var image: String?
     
     @Field(key: "market_cap_rank")
-    var marketCapRank: Int64
+    var marketCapRank: Int64?
     
     @Field(key: "current_price")
-    var currentPrice: Double
+    var currentPrice: Double?
     
-    @Field(key: "price_change")
-    var priceChange: Double
+    @Field(key: "price_change_percentage_24h")
+    var priceChangePercentage24H: Double?
     
     init() {}
     
     init(
-        id: String,
+        id: String?,
         name: String,
-        imageData: Data?,
-        marketCapRank: Int64,
-        currentPrice: Double,
-        priceChange: Double
+        image: String?,
+        marketCapRank: Int64?,
+        currentPrice: Double?,
+        priceChangePercentage24H: Double?
     ) {
         self.id = id
         self.name = name
-        self.imageData = imageData
+        self.image = image
         self.marketCapRank = marketCapRank
         self.currentPrice = currentPrice
-        self.priceChange = priceChange
+        self.priceChangePercentage24H = priceChangePercentage24H
     }
 }

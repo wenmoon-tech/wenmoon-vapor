@@ -166,18 +166,18 @@ final class CoinTests: XCTestCase {
     private func makeCoin(
         id: String = "coin-1",
         name: String = "Coin 1",
-        imageData: Data? = nil,
-        marketCapRank: Int64 = .random(in: 1...2500),
-        currentPrice: Double = .random(in: 0.01...100000),
-        priceChange: Double = .random(in: -50...50)
+        image: String? = nil,
+        marketCapRank: Int64? = .random(in: 1...2500),
+        currentPrice: Double? = .random(in: 0.01...100000),
+        priceChangePercentage24H: Double? = .random(in: -50...50)
     ) -> Coin {
         .init(
             id: id,
             name: name,
-            imageData: imageData,
+            image: image,
             marketCapRank: marketCapRank,
             currentPrice: currentPrice,
-            priceChange: priceChange
+            priceChangePercentage24H: priceChangePercentage24H
         )
     }
     
@@ -212,10 +212,10 @@ final class CoinTests: XCTestCase {
             let expectedCoin = expectedCoins[index]
             XCTAssertEqual(coin.id, expectedCoin.id)
             XCTAssertEqual(coin.name, expectedCoin.name)
-            XCTAssertEqual(coin.imageData, expectedCoin.imageData)
+            XCTAssertEqual(coin.image, expectedCoin.image)
             XCTAssertEqual(coin.marketCapRank, expectedCoin.marketCapRank)
             XCTAssertEqual(coin.currentPrice, expectedCoin.currentPrice)
-            XCTAssertEqual(coin.priceChange, expectedCoin.priceChange)
+            XCTAssertEqual(coin.priceChangePercentage24H, expectedCoin.priceChangePercentage24H)
         }
     }
     
@@ -223,7 +223,7 @@ final class CoinTests: XCTestCase {
         XCTAssertEqual(coins.count, marketData.count)
         for coin in coins {
             XCTAssertEqual(coin.currentPrice, marketData[coin.id!]!.currentPrice)
-            XCTAssertEqual(coin.priceChange, marketData[coin.id!]!.priceChange)
+            XCTAssertEqual(coin.priceChangePercentage24H, marketData[coin.id!]!.priceChangePercentage24H)
         }
     }
 }

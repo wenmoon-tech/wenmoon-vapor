@@ -5,10 +5,10 @@ struct CreateCoin: AsyncMigration {
         try await database.schema("coins")
             .field("id", .string, .required)
             .field("name", .string, .required)
-            .field("image_data", .data)
-            .field("market_cap_rank", .int64, .required)
-            .field("current_price", .double, .required)
-            .field("price_change", .double, .required)
+            .field("image", .string)
+            .field("market_cap_rank", .int64)
+            .field("current_price", .double)
+            .field("price_change_percentage_24h", .double)
             .create()
     }
     
