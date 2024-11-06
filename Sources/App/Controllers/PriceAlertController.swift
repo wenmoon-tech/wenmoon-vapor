@@ -38,6 +38,8 @@ struct PriceAlertController {
                 coin.id!,
                 MarketData(
                     currentPrice: coin.currentPrice,
+                    marketCap: coin.marketCap,
+                    totalVolume: coin.totalVolume,
                     priceChangePercentage24H: coin.priceChangePercentage24H
                 )
             )

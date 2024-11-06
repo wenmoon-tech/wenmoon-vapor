@@ -60,6 +60,8 @@ func routes(_ app: Application) throws {
                 for coin in coins {
                     let marketData = MarketData(
                         currentPrice: coin.currentPrice,
+                        marketCap: coin.marketCap,
+                        totalVolume: coin.totalVolume,
                         priceChangePercentage24H: coin.priceChangePercentage24H
                     )
                     marketDataDict[coin.id!] = marketData

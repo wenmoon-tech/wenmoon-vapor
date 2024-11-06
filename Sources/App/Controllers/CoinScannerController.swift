@@ -11,9 +11,9 @@ struct CoinScannerController {
     func startFetchingCoinsPeriodically(
         app: Application,
         currency: String = "usd",
-        totalCoins: Int = 2500,
+        totalCoins: Int = 1000,
         perPage: Int = 250,
-        coinFetchInterval: TimeAmount = .minutes(30),
+        coinFetchInterval: TimeAmount = .minutes(60),
         priceUpdateInterval: TimeAmount = .minutes(3)
     ) {
         let eventLoop = app.eventLoopGroup.next()
@@ -148,6 +148,8 @@ struct CoinScannerController {
                     let updateFutures = batch.map { coin in
                         if let marketData = marketData[coin.id!] {
                             coin.currentPrice = marketData[currency]
+                            coin.marketCap = marketData["\(currency)_market_cap"]
+                            coin.totalVolume = marketData["\(currency)_24h_vol"]
                             coin.priceChangePercentage24H = marketData["\(currency)_24h_change"]
                             return coin.update(on: req.db)
                         }
@@ -165,6 +167,8 @@ struct CoinScannerController {
         urlComponents?.queryItems = [
             URLQueryItem(name: "ids", value: ids),
             URLQueryItem(name: "vs_currencies", value: currency),
+            URLQueryItem(name: "include_market_cap", value: "true"),
+            URLQueryItem(name: "include_24hr_vol", value: "true"),
             URLQueryItem(name: "include_24hr_change", value: "true")
         ]
         return urlComponents?.url

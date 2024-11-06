@@ -165,19 +165,55 @@ final class CoinTests: XCTestCase {
     // Make/Create Coin
     private func makeCoin(
         id: String = "coin-1",
+        symbol: String = "c-1",
         name: String = "Coin 1",
         image: String? = nil,
-        marketCapRank: Int64? = .random(in: 1...2500),
         currentPrice: Double? = .random(in: 0.01...100000),
-        priceChangePercentage24H: Double? = .random(in: -50...50)
+        marketCap: Double? = .random(in: 1_000_000...1_000_000_000),
+        marketCapRank: Int64? = .random(in: 1...1000),
+        fullyDilutedValuation: Double? = .random(in: 1_000_000...1_000_000_000),
+        totalVolume: Double? = .random(in: 1000...1_000_000),
+        high24H: Double? = .random(in: 0.01...100000),
+        low24H: Double? = .random(in: 0.01...100000),
+        priceChange24H: Double? = .random(in: -1000...1000),
+        priceChangePercentage24H: Double? = .random(in: -50...50),
+        marketCapChange24H: Double? = .random(in: -1_000_000...1_000_000),
+        marketCapChangePercentage24H: Double? = .random(in: -50...50),
+        circulatingSupply: Double? = .random(in: 1_000...1_000_000_000),
+        totalSupply: Double? = .random(in: 1_000_000...1_000_000_000),
+        maxSupply: Double? = .random(in: 1_000_000...1_000_000_000),
+        ath: Double? = .random(in: 0.01...100000),
+        athChangePercentage: Double? = .random(in: -100...100),
+        athDate: String? = "2022-01-01T00:00:00.000Z",
+        atl: Double? = .random(in: 0.001...10),
+        atlChangePercentage: Double? = .random(in: -100...100),
+        atlDate: String? = "2020-01-01T00:00:00.000Z"
     ) -> Coin {
         .init(
             id: id,
+            symbol: symbol,
             name: name,
             image: image,
-            marketCapRank: marketCapRank,
             currentPrice: currentPrice,
-            priceChangePercentage24H: priceChangePercentage24H
+            marketCap: marketCap,
+            marketCapRank: marketCapRank,
+            fullyDilutedValuation: fullyDilutedValuation,
+            totalVolume: totalVolume,
+            high24H: high24H,
+            low24H: low24H,
+            priceChange24H: priceChange24H,
+            priceChangePercentage24H: priceChangePercentage24H,
+            marketCapChange24H: marketCapChange24H,
+            marketCapChangePercentage24H: marketCapChangePercentage24H,
+            circulatingSupply: circulatingSupply,
+            totalSupply: totalSupply,
+            maxSupply: maxSupply,
+            ath: ath,
+            athChangePercentage: athChangePercentage,
+            athDate: athDate,
+            atl: atl,
+            atlChangePercentage: atlChangePercentage,
+            atlDate: atlDate
         )
     }
     
@@ -211,11 +247,29 @@ final class CoinTests: XCTestCase {
             let coin = coins[index]
             let expectedCoin = expectedCoins[index]
             XCTAssertEqual(coin.id, expectedCoin.id)
+            XCTAssertEqual(coin.symbol, expectedCoin.symbol)
             XCTAssertEqual(coin.name, expectedCoin.name)
             XCTAssertEqual(coin.image, expectedCoin.image)
-            XCTAssertEqual(coin.marketCapRank, expectedCoin.marketCapRank)
             XCTAssertEqual(coin.currentPrice, expectedCoin.currentPrice)
+            XCTAssertEqual(coin.marketCap, expectedCoin.marketCap)
+            XCTAssertEqual(coin.marketCapRank, expectedCoin.marketCapRank)
+            XCTAssertEqual(coin.fullyDilutedValuation, expectedCoin.fullyDilutedValuation)
+            XCTAssertEqual(coin.totalVolume, expectedCoin.totalVolume)
+            XCTAssertEqual(coin.high24H, expectedCoin.high24H)
+            XCTAssertEqual(coin.low24H, expectedCoin.low24H)
+            XCTAssertEqual(coin.priceChange24H, expectedCoin.priceChange24H)
             XCTAssertEqual(coin.priceChangePercentage24H, expectedCoin.priceChangePercentage24H)
+            XCTAssertEqual(coin.marketCapChange24H, expectedCoin.marketCapChange24H)
+            XCTAssertEqual(coin.marketCapChangePercentage24H, expectedCoin.marketCapChangePercentage24H)
+            XCTAssertEqual(coin.circulatingSupply, expectedCoin.circulatingSupply)
+            XCTAssertEqual(coin.totalSupply, expectedCoin.totalSupply)
+            XCTAssertEqual(coin.maxSupply, expectedCoin.maxSupply)
+            XCTAssertEqual(coin.ath, expectedCoin.ath)
+            XCTAssertEqual(coin.athChangePercentage, expectedCoin.athChangePercentage)
+            XCTAssertEqual(coin.athDate, expectedCoin.athDate)
+            XCTAssertEqual(coin.atl, expectedCoin.atl)
+            XCTAssertEqual(coin.atlChangePercentage, expectedCoin.atlChangePercentage)
+            XCTAssertEqual(coin.atlDate, expectedCoin.atlDate)
         }
     }
     
@@ -223,6 +277,8 @@ final class CoinTests: XCTestCase {
         XCTAssertEqual(coins.count, marketData.count)
         for coin in coins {
             XCTAssertEqual(coin.currentPrice, marketData[coin.id!]!.currentPrice)
+            XCTAssertEqual(coin.marketCap, marketData[coin.id!]!.marketCap)
+            XCTAssertEqual(coin.totalVolume, marketData[coin.id!]!.totalVolume)
             XCTAssertEqual(coin.priceChangePercentage24H, marketData[coin.id!]!.priceChangePercentage24H)
         }
     }

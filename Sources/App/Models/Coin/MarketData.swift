@@ -10,13 +10,26 @@ final class MarketData: Model, Content {
     @Field(key: "current_price")
     var currentPrice: Double?
     
+    @Field(key: "market_cap")
+    var marketCap: Double?
+    
+    @Field(key: "total_volume")
+    var totalVolume: Double?
+    
     @Field(key: "price_change_percentage_24h")
     var priceChangePercentage24H: Double?
     
     init() {}
 
-    init(currentPrice: Double?, priceChangePercentage24H: Double?) {
+    init(
+        currentPrice: Double?,
+        marketCap: Double?,
+        totalVolume: Double?,
+        priceChangePercentage24H: Double?
+    ) {
         self.currentPrice = currentPrice
+        self.marketCap = marketCap
+        self.totalVolume = totalVolume
         self.priceChangePercentage24H = priceChangePercentage24H
     }
 }
