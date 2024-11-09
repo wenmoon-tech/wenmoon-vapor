@@ -276,10 +276,26 @@ final class CoinTests: XCTestCase {
     private func assertMarketDataEqual(for coins: [Coin], with marketData: [String: MarketData]) {
         XCTAssertEqual(coins.count, marketData.count)
         for coin in coins {
-            XCTAssertEqual(coin.currentPrice, marketData[coin.id!]!.currentPrice)
-            XCTAssertEqual(coin.marketCap, marketData[coin.id!]!.marketCap)
-            XCTAssertEqual(coin.totalVolume, marketData[coin.id!]!.totalVolume)
-            XCTAssertEqual(coin.priceChangePercentage24H, marketData[coin.id!]!.priceChangePercentage24H)
+            let expectedMarketData = marketData[coin.id!]!
+            XCTAssertEqual(coin.currentPrice, expectedMarketData.currentPrice)
+            XCTAssertEqual(coin.marketCap, expectedMarketData.marketCap)
+            XCTAssertEqual(coin.marketCapRank, expectedMarketData.marketCapRank)
+            XCTAssertEqual(coin.fullyDilutedValuation, expectedMarketData.fullyDilutedValuation)
+            XCTAssertEqual(coin.totalVolume, expectedMarketData.totalVolume)
+            XCTAssertEqual(coin.high24H, expectedMarketData.high24H)
+            XCTAssertEqual(coin.low24H, expectedMarketData.low24H)
+            XCTAssertEqual(coin.priceChange24H, expectedMarketData.priceChange24H)
+            XCTAssertEqual(coin.priceChangePercentage24H, expectedMarketData.priceChangePercentage24H)
+            XCTAssertEqual(coin.marketCapChange24H, expectedMarketData.marketCapChange24H)
+            XCTAssertEqual(coin.marketCapChangePercentage24H, expectedMarketData.marketCapChangePercentage24H)
+            XCTAssertEqual(coin.circulatingSupply, expectedMarketData.circulatingSupply)
+            XCTAssertEqual(coin.totalSupply, expectedMarketData.totalSupply)
+            XCTAssertEqual(coin.ath, expectedMarketData.ath)
+            XCTAssertEqual(coin.athChangePercentage, expectedMarketData.athChangePercentage)
+            XCTAssertEqual(coin.athDate, expectedMarketData.athDate)
+            XCTAssertEqual(coin.atl, expectedMarketData.atl)
+            XCTAssertEqual(coin.atlChangePercentage, expectedMarketData.atlChangePercentage)
+            XCTAssertEqual(coin.atlDate, expectedMarketData.atlDate)
         }
     }
 }

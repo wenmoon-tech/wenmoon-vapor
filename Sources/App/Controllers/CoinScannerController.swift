@@ -16,10 +16,8 @@ struct CoinScannerController {
         coinFetchInterval: TimeAmount = .minutes(60),
         priceUpdateInterval: TimeAmount = .minutes(3)
     ) {
-        let eventLoop = app.eventLoopGroup.next()
-        
         // Schedule the task for fetching and saving coins every `coinFetchInterval`
-        eventLoop.scheduleRepeatedTask(initialDelay: .seconds(5), delay: coinFetchInterval) { task in
+        app.eventLoopGroup.next().scheduleRepeatedTask(initialDelay: .seconds(5), delay: coinFetchInterval) { task in
             let req = Request(application: app, on: app.eventLoopGroup.next())
             fetchAllCoins(on: req, currency: currency, totalCoins: totalCoins, perPage: perPage)
                 .whenComplete { result in
@@ -33,7 +31,7 @@ struct CoinScannerController {
         }
         
         // Schedule a separate task for updating prices every `priceUpdateInterval`
-        eventLoop.scheduleRepeatedTask(initialDelay: .minutes(3), delay: priceUpdateInterval) { task in
+        app.eventLoopGroup.next().scheduleRepeatedTask(initialDelay: .minutes(3), delay: priceUpdateInterval) { task in
             let req = Request(application: app, on: app.eventLoopGroup.next())
             updateMarketData(for: currency, on: req)
                 .whenComplete { result in
@@ -150,7 +148,7 @@ struct CoinScannerController {
                             coin.currentPrice = marketData[currency]
                             coin.marketCap = marketData["\(currency)_market_cap"]
                             coin.totalVolume = marketData["\(currency)_24h_vol"]
-                            coin.priceChangePercentage24H = marketData["\(currency)_24h_change"]
+                            coin.priceChange24H = marketData["\(currency)_24h_change"]
                             return coin.update(on: req.db)
                         }
                         return req.eventLoop.makeSucceededFuture(())

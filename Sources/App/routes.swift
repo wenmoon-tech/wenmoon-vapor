@@ -61,8 +61,23 @@ func routes(_ app: Application) throws {
                     let marketData = MarketData(
                         currentPrice: coin.currentPrice,
                         marketCap: coin.marketCap,
+                        marketCapRank: coin.marketCapRank,
+                        fullyDilutedValuation: coin.fullyDilutedValuation,
                         totalVolume: coin.totalVolume,
-                        priceChangePercentage24H: coin.priceChangePercentage24H
+                        high24H: coin.high24H,
+                        low24H: coin.low24H,
+                        priceChange24H: coin.priceChange24H,
+                        priceChangePercentage24H: coin.priceChangePercentage24H,
+                        marketCapChange24H: coin.marketCapChange24H,
+                        marketCapChangePercentage24H: coin.marketCapChangePercentage24H,
+                        circulatingSupply: coin.circulatingSupply,
+                        totalSupply: coin.totalSupply,
+                        ath: coin.ath,
+                        athChangePercentage: coin.athChangePercentage,
+                        athDate: coin.athDate,
+                        atl: coin.atl,
+                        atlChangePercentage: coin.atlChangePercentage,
+                        atlDate: coin.atlDate
                     )
                     marketDataDict[coin.id!] = marketData
                 }
