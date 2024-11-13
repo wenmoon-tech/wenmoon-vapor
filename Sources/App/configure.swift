@@ -25,7 +25,8 @@ public func configure(_ app: Application) async throws {
             username: Environment.get("DATABASE_USERNAME") ?? "arturxsan",
             password: Environment.get("DATABASE_PASSWORD") ?? "",
             database: databaseName,
-            maxConnectionsPerEventLoop: 2
+            maxConnectionsPerEventLoop: 10,
+            connectionPoolTimeout: .seconds(60)
         ), as: .psql)
     }
     

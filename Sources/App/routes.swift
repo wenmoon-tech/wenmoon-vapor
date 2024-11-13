@@ -1,6 +1,10 @@
 import Fluent
 import Vapor
 
+struct OHLCDataProviderKey: StorageKey {
+    typealias Value = OHLCDataProvider
+}
+
 func routes(_ app: Application) throws {
     // MARK: - Coins
     app.get("coins") { req -> EventLoopFuture<[Coin]> in
@@ -18,7 +22,7 @@ func routes(_ app: Application) throws {
         let perPage = (try? req.query.get(Int.self, at: "per_page")) ?? 250
         
         guard page > 0, perPage > 0 else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Page and per_page must be positive integers."))
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Page and per_page must be positive integers"))
         }
         
         let lowerBound = (page - 1) * perPage
@@ -31,7 +35,8 @@ func routes(_ app: Application) throws {
     }
     
     app.get("search") { req -> EventLoopFuture<[Coin]> in
-        guard let searchTerm = try? req.query.get(String.self, at: "query"), !searchTerm.isEmpty else {
+        guard let searchTerm = try? req.query.get(String.self, at: "query").lowercased(),
+              !searchTerm.isEmpty else {
             return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'query' is required"))
         }
         
@@ -40,6 +45,7 @@ func routes(_ app: Application) throws {
                 group
                     .filter(\.$name ~~ searchTerm)
                     .filter(\.$id ~~ searchTerm)
+                    .filter(\.$symbol ~~ searchTerm)
             }
             .sort(\.$marketCapRank, .ascending)
             .all()
@@ -85,6 +91,19 @@ func routes(_ app: Application) throws {
             }
     }
     
+    app.get("ohlc") { req -> EventLoopFuture<[String: [OHLCData]]> in
+        guard let symbol = try? req.query.get(String.self, at: "symbol"), !symbol.isEmpty else {
+            throw Abort(.badRequest, reason: "Query parameter 'symbol' is required")
+        }
+        
+        guard let currency = try? req.query.get(Currency.self, at: "currency") else {
+            throw Abort(.badRequest, reason: "Query parameter 'currency' is missing or invalid")
+        }
+        
+        let provider: OHLCDataProvider = req.application.storage[OHLCDataProviderKey.self] ?? CoinScannerController.shared
+        return provider.fetchOHLCData(symbol: symbol, currency: currency, req: req)
+    }
+    
     // MARK: - Price Alerts
     let headers = HTTPHeaders([("content-type", "application/json")])
     
@@ -124,7 +143,7 @@ func routes(_ app: Application) throws {
                         return req.eventLoop.makeFailedFuture(
                             Abort(
                                 .conflict,
-                                reason: "Price alert already exists for this coin and device."
+                                reason: "Price alert already exists for this coin and device"
                             )
                         )
                     } else {

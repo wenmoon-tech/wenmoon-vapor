@@ -5,13 +5,17 @@ import XCTVapor
 final class CoinTests: XCTestCase {
     // MARK: - Properties
     var app: Application!
+    var provider: OHLCDataProviderMock!
     
     // MARK: - Setup
     override func setUp() async throws {
         app = try await Application.testable()
+        provider = OHLCDataProviderMock()
+        app.storage[OHLCDataProviderKey.self] = provider
     }
     
     override func tearDown() async throws {
+        provider = nil
         try await app.autoRevert()
         try await app.asyncShutdown()
     }
@@ -100,7 +104,7 @@ final class CoinTests: XCTestCase {
         try app.test(.GET, "coins?page=-1&per_page=-1") { response in
             // Assertions: Check that a bad request status is returned
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssert(response.body.string.contains("Page and per_page must be positive integers."))
+            XCTAssert(response.body.string.contains("Page and per_page must be positive integers"))
         }
     }
     
@@ -124,6 +128,18 @@ final class CoinTests: XCTestCase {
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'query' is required"))
+        }
+    }
+    
+    func testSearchCoins_caseInsensitive() async throws {
+        // Setup
+        let coin = try await createCoin(makeCoin(id: "coin-1", name: "Coin 1"))
+        
+        // Action
+        try app.test(.GET, "search?query=COIN") { response in
+            XCTAssertEqual(response.status, .ok)
+            let receivedCoins = try response.content.decode([Coin].self)
+            assertCoinsEqual(receivedCoins, [coin])
         }
     }
     
@@ -158,6 +174,49 @@ final class CoinTests: XCTestCase {
             // Assertions: Check that no market data is returned for an empty IDs parameter
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
+        }
+    }
+    
+    func testGetOHLC_success() async throws {
+        // Setup
+        let ohlcData = makeOHLCDataForTimeframes()
+        provider.data = ohlcData
+
+        // Action
+        try await app.test(.GET, "ohlc?symbol=coin-1&currency=usd") { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok, "Response status should be OK")
+            let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
+            assertOHLCDataEqual(receivedOHLCData, ohlcData)
+        }
+    }
+    
+    func testGetOHLC_missingOrInvalidParameter() async throws {
+        // Action: Make a request without the required `symbol` query parameter
+        try app.test(.GET, "ohlc?currency=usd") { response in
+            // Assertions
+            XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Query parameter 'symbol' is required"))
+        }
+        
+        // Action: Make a request with an invalid value for the `currency` query parameter
+        try app.test(.GET, "ohlc?symbol=coin-1&currency=invalid") { response in
+            // Assertions
+            XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Query parameter 'currency' is missing or invalid"))
+        }
+    }
+
+    func testGetOHLC_emptyResponse() async throws {
+        // Setup
+        provider.data = [:]
+        
+        // Action
+        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd") { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
+            XCTAssertTrue(receivedOHLCData.isEmpty)
         }
     }
     
@@ -296,6 +355,36 @@ final class CoinTests: XCTestCase {
             XCTAssertEqual(coin.atl, expectedMarketData.atl)
             XCTAssertEqual(coin.atlChangePercentage, expectedMarketData.atlChangePercentage)
             XCTAssertEqual(coin.atlDate, expectedMarketData.atlDate)
+        }
+    }
+    
+    // OHLC
+    private func makeOHLCData(
+        timestamp: Int = Int(Date().timeIntervalSince1970),
+        close: Double = .random(in: 1.0...100.0)
+    ) -> OHLCData {
+        OHLCData(timestamp: timestamp, close: close)
+    }
+
+    private func makeOHLCDataForTimeframes(timeframes: [String] = ["1h", "1d", "1w", "1M", "1y", "all"]) -> [String: [OHLCData]] {
+        var data: [String: [OHLCData]] = [:]
+        for timeframe in timeframes {
+            data[timeframe] = (1...5).map { _ in makeOHLCData() }
+        }
+        return data
+    }
+
+    private func assertOHLCDataEqual(_ received: [String: [OHLCData]], _ expected: [String: [OHLCData]]) {
+        XCTAssertEqual(received.keys.sorted(), expected.keys.sorted())
+        for key in expected.keys {
+            let receivedData = received[key] ?? []
+            let expectedData = expected[key] ?? []
+            XCTAssertEqual(receivedData.count, expectedData.count)
+            
+            for (index, data) in receivedData.enumerated() {
+                XCTAssertEqual(data.timestamp, expectedData[index].timestamp)
+                XCTAssertEqual(data.close, expectedData[index].close)
+            }
         }
     }
 }

@@ -90,7 +90,7 @@ final class PriceAlertTests: XCTestCase {
         }, afterResponse: { response in
             // Assertions
             XCTAssertEqual(response.status, .conflict)
-            XCTAssertTrue(response.body.string.contains("Price alert already exists for this coin and device."))
+            XCTAssertTrue(response.body.string.contains("Price alert already exists for this coin and device"))
         })
     }
     
