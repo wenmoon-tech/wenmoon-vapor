@@ -33,6 +33,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add([CreatePriceAlert(), CreateCoin()])
     try await app.autoMigrate()
 
+    app.middleware.use(APIKeyMiddleware())
     try routes(app)
     
     if app.environment != .testing {
