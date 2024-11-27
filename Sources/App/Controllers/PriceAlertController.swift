@@ -55,9 +55,11 @@ struct PriceAlertController {
         var deleteAlertFutures: [EventLoopFuture<Void>] = []
         
         for priceAlert in priceAlerts {
-            guard let id = priceAlert.id,
-                  let currentPrice = marketData[id]?.currentPrice,
-                  let deviceToken = priceAlert.deviceToken else {
+            guard
+                let id = priceAlert.id,
+                let currentPrice = marketData[id]?.currentPrice,
+                let deviceToken = priceAlert.deviceToken
+            else {
                 continue
             }
             
@@ -97,7 +99,7 @@ struct PriceAlertController {
     ) -> EventLoopFuture<Void> {
         let alert = APNSwiftAlert(
             title: "Price Alert",
-            body: "Your price target of \(priceAlert.targetPrice)$ for \(priceAlert.name) is reached!"
+            body: "Your price target of \(priceAlert.targetPrice)$ for \(priceAlert.symbol.uppercased()) is reached!"
         )
         let aps = APNSwiftPayload(alert: alert, badge: badge, sound: .normal("default"))
         let notification = PriceAlertNotification(id: priceAlert.id!, aps: aps)

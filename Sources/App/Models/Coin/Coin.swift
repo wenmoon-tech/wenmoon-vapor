@@ -4,6 +4,7 @@ import Vapor
 final class Coin: Model, Content {
     static let schema = "coins"
     
+    // MARK: - Properties
     @ID(custom: "id")
     var id: String?
 
@@ -76,6 +77,7 @@ final class Coin: Model, Content {
     @Field(key: "atl_date")
     var atlDate: String?
     
+    // MARK: - Initializers
     init() {}
     
     init(

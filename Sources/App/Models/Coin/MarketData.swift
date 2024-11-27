@@ -4,6 +4,7 @@ import Vapor
 final class MarketData: Model, Content {
     static let schema = "market_data"
     
+    // MARK: - Properties
     @ID(key: .id)
     var id: UUID?
     
@@ -64,6 +65,7 @@ final class MarketData: Model, Content {
     @Field(key: "atl_date")
     var atlDate: String?
     
+    // MARK: - Initializers
     init() {}
 
     init(

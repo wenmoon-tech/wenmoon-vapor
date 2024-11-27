@@ -107,20 +107,36 @@ func routes(_ app: Application) throws {
     // MARK: - Price Alerts
     let headers = HTTPHeaders([("content-type", "application/json")])
     
-    app.get("price-alerts") { req -> EventLoopFuture<[PriceAlert]> in
-        guard let deviceToken = req.headers.first(name: "X-Device-ID") else {
-            return PriceAlert.query(on: req.db).all()
+    app.get("users", ":user_id", "price-alerts") { req -> EventLoopFuture<[PriceAlert]> in
+        guard let userID = req.parameters.get("user_id") else {
+            throw Abort(.badRequest, reason: "user_id parameter must not be empty")
         }
+        
+        guard let deviceToken = req.headers.first(name: "X-Device-ID") else {
+            throw Abort(.badRequest, reason: "X-Device-ID header missing")
+        }
+        
         return PriceAlert.query(on: req.db)
-            .filter(\.$deviceToken == deviceToken)
+            .filter(\.$userID == userID)
             .all()
+            .flatMap { priceAlerts in
+                let updateFutures = priceAlerts.map { priceAlert in
+                    priceAlert.deviceToken = deviceToken
+                    return priceAlert.update(on: req.db)
+                }
+                return updateFutures.flatten(on: req.eventLoop).transform(to: priceAlerts)
+            }
     }
     
-    app.post("price-alert") { req -> EventLoopFuture<Response> in
+    app.post("users", ":user_id", "price-alert") { req -> EventLoopFuture<Response> in
+        guard let userID = req.parameters.get("user_id") else {
+            throw Abort(.badRequest, reason: "user_id parameter must not be empty")
+        }
+        
         do {
             let priceAlert = try req.content.decode(PriceAlert.self)
             
-            guard !priceAlert.id!.isEmpty else {
+            guard let id = priceAlert.id, !id.isEmpty else {
                 throw Abort(.badRequest, reason: "id parameter must not be empty")
             }
             
@@ -132,18 +148,20 @@ func routes(_ app: Application) throws {
                 throw Abort(.badRequest, reason: "X-Device-ID header missing")
             }
             
+            priceAlert.userID = userID
             priceAlert.deviceToken = deviceToken
             
             return PriceAlert.query(on: req.db)
-                .filter(\.$deviceToken == deviceToken)
-                .filter(\.$id == priceAlert.id!)
+                .filter(\.$userID == userID)
+                .filter(\.$symbol == priceAlert.symbol)
+                .filter(\.$targetPrice == priceAlert.targetPrice)
                 .first()
                 .flatMap { existingPriceAlert in
                     if existingPriceAlert != nil {
                         return req.eventLoop.makeFailedFuture(
                             Abort(
                                 .conflict,
-                                reason: "Price alert already exists for this coin and device"
+                                reason: "Price alert already exists for this coin with the same target price"
                             )
                         )
                     } else {
@@ -161,17 +179,17 @@ func routes(_ app: Application) throws {
         }
     }
     
-    app.delete("price-alert", ":id") { req -> EventLoopFuture<Response> in
-        guard let id = req.parameters.get("id") else {
-            throw Abort(.badRequest)
+    app.delete("users", ":user_id", "price-alert", ":id") { req -> EventLoopFuture<Response> in
+        guard let userID = req.parameters.get("user_id") else {
+            throw Abort(.badRequest, reason: "user_id parameter must not be empty")
         }
         
-        guard let deviceToken = req.headers.first(name: "X-Device-ID") else {
-            throw Abort(.badRequest, reason: "X-Device-ID header missing")
+        guard let id = req.parameters.get("id") else {
+            throw Abort(.badRequest, reason: "id parameter must not be empty")
         }
         
         return PriceAlert.query(on: req.db)
-            .filter(\.$deviceToken == deviceToken)
+            .filter(\.$userID == userID)
             .filter(\.$id == id)
             .first()
             .flatMap { priceAlert -> EventLoopFuture<Response> in
@@ -180,7 +198,7 @@ func routes(_ app: Application) throws {
                         Abort(
                             .notFound,
                             headers: headers,
-                            reason: "Could not find price alert with the following coin id: \(id)"
+                            reason: "Could not find price alert with the following coin id: \(id) for user id: \(userID)"
                         )
                     )
                 }

@@ -6,16 +6,16 @@ struct OHLCData: Content, Decodable {
     let timestamp: Int
     let close: Double
     
-    // MARK: - Coding Keys
-    private enum CodingKeys: String, CodingKey {
-        case timestamp
-        case close
-    }
-    
     // MARK: - Initializers
     init(timestamp: Int, close: Double) {
         self.timestamp = timestamp
         self.close = close
+    }
+    
+    // MARK: - Decodable
+    private enum CodingKeys: String, CodingKey {
+        case timestamp
+        case close
     }
     
     init(from decoder: Decoder) throws {

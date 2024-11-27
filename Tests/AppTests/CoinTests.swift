@@ -6,12 +6,16 @@ final class CoinTests: XCTestCase {
     // MARK: - Properties
     var app: Application!
     var provider: OHLCDataProviderMock!
+    var headers: HTTPHeaders!
     
     // MARK: - Setup
     override func setUp() async throws {
         app = try await Application.testable()
         provider = OHLCDataProviderMock()
         app.storage[OHLCDataProviderKey.self] = provider
+        headers = HTTPHeaders(
+            [("X-API-Key", "9178693a7845b10ce1cedfe571f0682b9051aa793c41545739ce724f3ae272db")]
+        )
     }
     
     override func tearDown() async throws {
@@ -27,7 +31,7 @@ final class CoinTests: XCTestCase {
         let coins = try await createCoins()
         
         // Action
-        try app.test(.GET, "coins") { response in
+        try app.test(.GET, "coins", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -42,7 +46,7 @@ final class CoinTests: XCTestCase {
         let coin3 = try await createCoin(makeCoin(id: "coin-3", marketCapRank: 3))
         
         // Action
-        try app.test(.GET, "coins?ids=coin-1,coin-2") { response in
+        try app.test(.GET, "coins?ids=coin-1,coin-2", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -56,7 +60,7 @@ final class CoinTests: XCTestCase {
         _ = try await createCoin()
         
         // Action: Fetch coins with a nonexistent ID
-        try app.test(.GET, "coins?ids=nonexistent-coin") { response in
+        try app.test(.GET, "coins?ids=nonexistent-coin", headers: headers) { response in
             // Assertions: Check that no coins are returned for a nonexistent ID
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -64,7 +68,7 @@ final class CoinTests: XCTestCase {
         }
         
         // Action: Fetch coins with an empty `ids` parameter
-        try app.test(.GET, "coins?ids=") { response in
+        try app.test(.GET, "coins?ids=", headers: headers) { response in
             // Assertions: Check that no coins are returned for an empty IDs parameter
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -78,7 +82,7 @@ final class CoinTests: XCTestCase {
         _ = try await createCoins(at: 2)
         
         // Action
-        try app.test(.GET, "coins?page=1&per_page=10") { response in
+        try app.test(.GET, "coins?page=1&per_page=10", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -91,7 +95,7 @@ final class CoinTests: XCTestCase {
         _ = try await createCoin()
         
         // Action: Request page 2, which should have no results
-        try app.test(.GET, "coins?page=2") { response in
+        try app.test(.GET, "coins?page=2", headers: headers) { response in
             // Assertions: Check that page 2 returns an empty list
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -101,7 +105,7 @@ final class CoinTests: XCTestCase {
     
     func testGetCoins_invalidParams() async throws {
         // Action: Request an invalid page and per_page values
-        try app.test(.GET, "coins?page=-1&per_page=-1") { response in
+        try app.test(.GET, "coins?page=-1&per_page=-1", headers: headers) { response in
             // Assertions: Check that a bad request status is returned
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Page and per_page must be positive integers"))
@@ -114,7 +118,7 @@ final class CoinTests: XCTestCase {
         let coin = try await createCoin()
         
         // Action
-        try app.test(.GET, "search?query=\(coin.id!)") { response in
+        try app.test(.GET, "search?query=\(coin.id!)", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
@@ -124,7 +128,7 @@ final class CoinTests: XCTestCase {
     
     func testSearchCoins_emptyQuery() throws {
         // Action
-        try app.test(.GET, "search?query=") { response in
+        try app.test(.GET, "search?query=", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'query' is required"))
@@ -136,7 +140,7 @@ final class CoinTests: XCTestCase {
         let coin = try await createCoin(makeCoin(id: "coin-1", name: "Coin 1"))
         
         // Action
-        try app.test(.GET, "search?query=COIN") { response in
+        try app.test(.GET, "search?query=COIN", headers: headers) { response in
             XCTAssertEqual(response.status, .ok)
             let receivedCoins = try response.content.decode([Coin].self)
             assertCoinsEqual(receivedCoins, [coin])
@@ -149,7 +153,7 @@ final class CoinTests: XCTestCase {
         let coin = try await createCoin()
         
         // Action
-        try app.test(.GET, "market-data?ids=\(coin.id!)") { response in
+        try app.test(.GET, "market-data?ids=\(coin.id!)", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let marketData = try response.content.decode([String: MarketData].self)
@@ -162,7 +166,7 @@ final class CoinTests: XCTestCase {
         _ = try await createCoin()
         
         // Action: Fetch market data with a nonexistent ID
-        try app.test(.GET, "market-data?ids=nonexistent-coin") { response in
+        try app.test(.GET, "market-data?ids=nonexistent-coin", headers: headers) { response in
             // Assertions: Check that no market data is returned for a nonexistent ID
             XCTAssertEqual(response.status, .ok)
             let marketData = try response.content.decode([String: MarketData].self)
@@ -170,7 +174,7 @@ final class CoinTests: XCTestCase {
         }
         
         // Action: Fetch market data with an empty `ids` parameter
-        try app.test(.GET, "market-data?ids=") { response in
+        try app.test(.GET, "market-data?ids=", headers: headers) { response in
             // Assertions: Check that no market data is returned for an empty IDs parameter
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
@@ -183,7 +187,7 @@ final class CoinTests: XCTestCase {
         provider.data = ohlcData
 
         // Action
-        try await app.test(.GET, "ohlc?symbol=coin-1&currency=usd") { response in
+        try await app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok, "Response status should be OK")
             let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
@@ -193,14 +197,14 @@ final class CoinTests: XCTestCase {
     
     func testGetOHLC_missingOrInvalidParameter() async throws {
         // Action: Make a request without the required `symbol` query parameter
-        try app.test(.GET, "ohlc?currency=usd") { response in
+        try app.test(.GET, "ohlc?currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'symbol' is required"))
         }
         
         // Action: Make a request with an invalid value for the `currency` query parameter
-        try app.test(.GET, "ohlc?symbol=coin-1&currency=invalid") { response in
+        try app.test(.GET, "ohlc?symbol=coin-1&currency=invalid", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'currency' is missing or invalid"))
@@ -212,7 +216,7 @@ final class CoinTests: XCTestCase {
         provider.data = [:]
         
         // Action
-        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd") { response in
+        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
