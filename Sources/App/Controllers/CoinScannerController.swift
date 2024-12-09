@@ -238,7 +238,7 @@ extension CoinScannerController: OHLCDataProvider {
     private func createProcess(symbol: String) -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = ["/Users/arturxsan/Desktop/Developer/wenmoon-vapor/ohlc_data_fetcher.py", symbol]
+        process.arguments = ["/app/ohlc_data_fetcher.py", symbol]
         return process
     }
     
