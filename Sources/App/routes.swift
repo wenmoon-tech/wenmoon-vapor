@@ -104,6 +104,34 @@ func routes(_ app: Application) throws {
         return provider.fetchOHLCData(symbol: symbol, currency: currency, req: req)
     }
     
+    // MARK: - Global Market Data
+    app.get("global-crypto-market-data") { req -> EventLoopFuture<GlobalCryptoMarketData> in
+        GlobalCryptoMarketData.query(on: req.db)
+            .first()
+            .flatMapThrowing { globalData -> GlobalCryptoMarketData in
+                guard let globalData else {
+                    throw Abort(.notFound, reason: "No global crypto market data found")
+                }
+                return globalData
+            }
+    }
+    
+    app.get("global-market-data") { req -> EventLoopFuture<GlobalMarketData> in
+        GlobalMarketData.query(on: req.db)
+            .first()
+            .flatMapThrowing { globalData -> GlobalMarketData in
+                guard let globalData else {
+                    return GlobalMarketData(
+                        cpiPercentage: 2.7,
+                        nextCPITimestamp: 1736947800,
+                        interestRatePercentage: 4.5,
+                        nextFOMCMeetingTimestamp: 1734548400
+                    )
+                }
+                return globalData
+            }
+    }
+    
     // MARK: - Price Alerts
     let headers = HTTPHeaders([("content-type", "application/json")])
     

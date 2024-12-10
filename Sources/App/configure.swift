@@ -30,7 +30,14 @@ public func configure(_ app: Application) async throws {
         ), as: .psql)
     }
     
-    app.migrations.add([CreatePriceAlert(), CreateCoin()])
+    app.migrations.add(
+        [
+            CreatePriceAlert(),
+            CreateCoin(),
+            CreateGlobalCryptoMarketData(),
+            CreateGlobalMarketData()
+        ]
+    )
     try await app.autoMigrate()
 
     app.middleware.use(APIKeyMiddleware())
