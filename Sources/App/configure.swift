@@ -22,7 +22,7 @@ public func configure(_ app: Application) async throws {
         app.databases.use(.postgres(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
             port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
-            username: Environment.get("DATABASE_USERNAME") ?? "arturxsan",
+            username: Environment.get("DATABASE_USERNAME") ?? "arturtkachenko",
             password: Environment.get("DATABASE_PASSWORD") ?? "",
             database: databaseName,
             maxConnectionsPerEventLoop: 10,
