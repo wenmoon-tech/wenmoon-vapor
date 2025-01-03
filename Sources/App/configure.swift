@@ -18,7 +18,7 @@ public func configure(_ app: Application) async throws {
         } else {
             databaseName = Environment.get("DATABASE_NAME") ?? "wenmoon_db"
         }
-
+        
         app.databases.use(.postgres(
             hostname: Environment.get("DATABASE_HOST") ?? "localhost",
             port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
@@ -30,16 +30,24 @@ public func configure(_ app: Application) async throws {
         ), as: .psql)
     }
     
-    app.migrations.add([CreatePriceAlert(), CreateCoin()])
+    app.migrations.add(
+        [
+            CreatePriceAlert(),
+            CreateCoin(),
+            CreateGlobalCryptoMarketData(),
+            CreateGlobalMarketData()
+        ]
+    )
+    
     try await app.autoMigrate()
-
+    
     app.middleware.use(APIKeyMiddleware())
     try routes(app)
     
     if app.environment != .testing {
         CoinScannerController.shared.startFetchingCoinsPeriodically(app: app)
     }
-
+    
     //try configureAPNS(app)
     //schedulePriceCheck(app)
 }
