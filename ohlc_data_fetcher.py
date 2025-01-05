@@ -1,107 +1,89 @@
 import ccxt
 import time
+import sys
 import json
 import os
-import sys
+from argparse import ArgumentParser
 
-# Define timeframes and their corresponding parameters
+# Define timeframes and aggregation settings
 timeframes = {
-    '1h': ('1m', 1 * 60 * 60 * 1000),
-    '1d': ('15m', 24 * 60 * 60 * 1000),
-    '1w': ('1h', 7 * 24 * 60 * 60 * 1000),
-    '1M': ('6h', 30 * 24 * 60 * 60 * 1000),
-    '1y': ('1d', 365 * 24 * 60 * 60 * 1000),
-    'all': ('1w', int(time.mktime(time.strptime('2010-01-01', '%Y-%m-%d')) * 1000))
+    '1h': ('1m', 1 * 60 * 60 * 1000),  # Aggregates 1-minute data into 1-hour
+    '1d': ('15m', 24 * 60 * 60 * 1000),  # Aggregates 15-minute data into 1-day
+    '1w': ('1h', 7 * 24 * 60 * 60 * 1000),  # Aggregates 1-hour data into 1-week
+    '1M': ('6h', 30 * 24 * 60 * 60 * 1000),  # Aggregates 6-hour data into 1-month
+    '1y': ('1d', 365 * 24 * 60 * 60 * 1000),  # Aggregates 1-day data into 1-year
+    'all': ('1w', int(time.mktime(time.strptime('2010-01-01', '%Y-%m-%d')) * 1000))  # Fetches all data since 2010
 }
 
-# Set up output directory only once
-output_dir = "ohlc_data"
+# List of exchanges to try in order
+exchanges_to_check = ["binance", "kucoin", "bitget", "okx", "gate", "mexc"]
+
+# Parse arguments
+parser = ArgumentParser()
+parser.add_argument("symbol", help="Symbol to fetch data for (e.g., BTC/USDT)")
+parser.add_argument("timeframe", help="Timeframe to fetch (e.g., 1h, 1d, 1w, etc.)")
+parser.add_argument("--output_dir", default="/tmp/output_data", help="Directory to write output files")
+args = parser.parse_args()
+
+output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
-# Debugging step: Print the absolute path where data will be saved
-print(f"Data will be saved to directory: {os.path.abspath(output_dir)}")
-
-def fetch_all_timeframes(symbol, exchange: ccxt.Exchange):
-    now = int(time.time() * 1000)
-    results = {}
-
-    # Normalize symbol for filename purposes (replace '/' with '_')
-    normalized_symbol = symbol.replace('/', '_')
-
-    for chart_range, (timeframe, period_ms) in timeframes.items():
-        start_time = now - period_ms if chart_range != 'all' else period_ms
-        print(f"Fetching data from API for {normalized_symbol}_{chart_range}...")
-
-        all_ohlc_data = []
-        while start_time < now:
-            try:
-                # Fetch OHLC data
-                ohlc_data = exchange.fetch_ohlcv(symbol, timeframe, since=start_time, limit=1500)
-                if not ohlc_data:
-                    break
-                all_ohlc_data.extend(ohlc_data)
-                start_time = ohlc_data[-1][0] + 1  # Move to the next timestamp
-                
-            except Exception as e:
-                print(f"Error fetching data for {chart_range}: {str(e)}", file=sys.stderr)
-                break
-
-        # Extract timestamp and close price if data was fetched
-        if all_ohlc_data:
-            line_data = [[candle[0], candle[4]] for candle in all_ohlc_data]
-            results[chart_range] = line_data
-
-    return results
-
 def find_exchange_for_symbol(symbol):
-    exchanges_to_check = ['binance', 'kucoin', 'bitget', 'okx', 'gate', 'mexc']
+    """Find an exchange that supports the given symbol."""
     for exchange_name in exchanges_to_check:
         try:
             exchange = getattr(ccxt, exchange_name)()
             markets = exchange.load_markets()
             if symbol in markets:
-                print(f"Symbol {symbol} found on exchange: {exchange_name}")
+                print(f"Symbol {symbol} found on exchange: {exchange_name}", file=sys.stderr)  # Debug to stderr
                 return exchange
             else:
-                print(f"Symbol {symbol} not found on exchange: {exchange_name}")
+                print(f"Symbol {symbol} not found on exchange: {exchange_name}", file=sys.stderr)  # Debug to stderr
         except Exception as e:
-            print(f"Error loading {exchange_name}: {str(e)}", file=sys.stderr)
-    
-    print(f"Symbol {symbol} is not available on any of the checked exchanges.")
-    return None
+            print(f"Error loading exchange {exchange_name}: {str(e)}", file=sys.stderr)  # Debug to stderr
+    print(json.dumps({"error": f"Symbol {symbol} is not available on any of the checked exchanges."}))
+    sys.exit(1)
+
+def fetch_ohlcv(symbol, exchange, timeframe, start_time, limit=1500):
+    """Fetch OHLCV data."""
+    all_ohlc_data = []
+    now = int(time.time() * 1000)
+
+    while start_time < now:
+        try:
+            ohlc_data = exchange.fetch_ohlcv(symbol, timeframe, since=start_time, limit=limit)
+            if not ohlc_data:
+                break
+            all_ohlc_data.extend(ohlc_data)
+            start_time = ohlc_data[-1][0] + 1  # Move to the next timestamp
+        except Exception as e:
+            print(json.dumps({"error": f"Error fetching data: {str(e)}"}))
+            sys.exit(1)
+
+    return [[candle[0], candle[4]] for candle in all_ohlc_data]  # Extract timestamp and close price
+
+def write_to_file(data, symbol, chart_range):
+    """Write data to a file and return the file path."""
+    filename = f"{symbol.replace('/', '_')}_{chart_range}.json"
+    file_path = os.path.join(output_dir, filename)
+    with open(file_path, 'w') as f:
+        json.dump(data, f)
+    return file_path
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python3 ohlc_data_fetcher.py <symbol>", file=sys.stderr)
+    symbol = args.symbol
+    chart_range = args.timeframe
+
+    if chart_range not in timeframes:
+        print(json.dumps({"error": f"Invalid timeframe: {chart_range}. Valid options are: {', '.join(timeframes.keys())}"}))
         sys.exit(1)
 
-    symbol = sys.argv[1]
-
-    # Find an exchange that supports the symbol
+    timeframe, period_ms = timeframes[chart_range]
     exchange = find_exchange_for_symbol(symbol)
-    
-    if exchange is None:
-        print(f"No exchange found for symbol {symbol}. Exiting.")
-        sys.exit(1)
 
-    try:
-        data = fetch_all_timeframes(symbol, exchange)
-        
-        if not data:
-            print(f"No data fetched for {symbol}. Symbol might not be listed on the exchange.")
-            sys.exit(1)
-        
-        # Save JSON to file
-        output_file = os.path.join(output_dir, f"{symbol.replace('/', '_')}_all.json")
+    start_time = int(time.time() * 1000) - period_ms if chart_range != 'all' else period_ms
+    data = fetch_ohlcv(symbol, exchange, timeframe, start_time)
 
-        # Debugging step: Print the absolute file path where data is saved
-        print(f"Saving data to file: {os.path.abspath(output_file)}")
-        
-        with open(output_file, "w") as f:
-            json.dump(data, f)
-        
-        # Output the file path for reference (this is what you need in your app to load the file)
-        print(f"Path:{os.path.abspath(output_file)}")
-
-    except Exception as e:
-        print(f"Error fetching OHLC data: {str(e)}", file=sys.stderr)
+    # Always write data to a file and return the file path
+    file_path = write_to_file(data, symbol, chart_range)
+    print(json.dumps({"file_path": file_path}))

@@ -93,15 +93,19 @@ func routes(_ app: Application) throws {
     
     app.get("ohlc") { req -> EventLoopFuture<[String: [OHLCData]]> in
         guard let symbol = try? req.query.get(String.self, at: "symbol"), !symbol.isEmpty else {
-            throw Abort(.badRequest, reason: "Query parameter 'symbol' is required")
+            throw Abort(.badRequest, reason: "Query parameter 'symbol' is invalid or missing")
+        }
+        
+        guard let timeframe = try? req.query.get(Timeframe.self, at: "timeframe") else {
+            throw Abort(.badRequest, reason: "Query parameter 'timeframe' is invalid or missing")
         }
         
         guard let currency = try? req.query.get(Currency.self, at: "currency") else {
-            throw Abort(.badRequest, reason: "Query parameter 'currency' is missing or invalid")
+            throw Abort(.badRequest, reason: "Query parameter 'currency' is invalid or missing")
         }
         
         let provider: OHLCDataProvider = req.application.storage[OHLCDataProviderKey.self] ?? CoinScannerController.shared
-        return provider.fetchOHLCData(symbol: symbol, currency: currency, req: req)
+        return provider.fetchOHLCData(symbol: symbol, timeframe: timeframe, currency: currency, req: req)
     }
     
     // MARK: - Global Market Data

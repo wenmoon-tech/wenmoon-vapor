@@ -187,27 +187,27 @@ final class CoinTests: XCTestCase {
         provider.data = ohlcData
 
         // Action
-        try await app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
+        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=usd", headers: headers) { response in
             // Assertions
-            XCTAssertEqual(response.status, .ok, "Response status should be OK")
+            XCTAssertEqual(response.status, .ok)
             let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
             assertOHLCDataEqual(receivedOHLCData, ohlcData)
         }
     }
     
-    func testGetOHLC_missingOrInvalidParameter() async throws {
-        // Action: Make a request without the required `symbol` query parameter
-        try app.test(.GET, "ohlc?currency=usd", headers: headers) { response in
+    func testGetOHLC_invalidOrMissingParameter() async throws {
+        // Action: Make a request without the required `timeframe` query parameter
+        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssert(response.body.string.contains("Query parameter 'symbol' is required"))
+            XCTAssert(response.body.string.contains("Query parameter 'timeframe' is invalid or missing"))
         }
         
         // Action: Make a request with an invalid value for the `currency` query parameter
-        try app.test(.GET, "ohlc?symbol=coin-1&currency=invalid", headers: headers) { response in
+        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=invalid", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
-            XCTAssert(response.body.string.contains("Query parameter 'currency' is missing or invalid"))
+            XCTAssert(response.body.string.contains("Query parameter 'currency' is invalid or missing"))
         }
     }
 
@@ -216,7 +216,7 @@ final class CoinTests: XCTestCase {
         provider.data = [:]
         
         // Action
-        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
+        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
@@ -370,10 +370,10 @@ final class CoinTests: XCTestCase {
         OHLCData(timestamp: timestamp, close: close)
     }
 
-    private func makeOHLCDataForTimeframes(timeframes: [String] = ["1h", "1d", "1w", "1M", "1y", "all"]) -> [String: [OHLCData]] {
+    private func makeOHLCDataForTimeframes(timeframes: [Timeframe] = Timeframe.allCases) -> [String: [OHLCData]] {
         var data: [String: [OHLCData]] = [:]
         for timeframe in timeframes {
-            data[timeframe] = (1...5).map { _ in makeOHLCData() }
+            data[timeframe.rawValue] = (1...5).map { _ in makeOHLCData() }
         }
         return data
     }
@@ -384,7 +384,6 @@ final class CoinTests: XCTestCase {
             let receivedData = received[key] ?? []
             let expectedData = expected[key] ?? []
             XCTAssertEqual(receivedData.count, expectedData.count)
-            
             for (index, data) in receivedData.enumerated() {
                 XCTAssertEqual(data.timestamp, expectedData[index].timestamp)
                 XCTAssertEqual(data.close, expectedData[index].close)

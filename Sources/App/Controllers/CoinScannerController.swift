@@ -2,30 +2,13 @@ import Fluent
 import FluentPostgresDriver
 import Vapor
 
-struct GlobalCryptoMarketDataResponse: Codable {
-    let data: GlobalCryptoMarketData
-}
-
-enum Currency: String, Decodable {
-    case usdt = "USDT"
-    
-    init?(rawValue: String) {
-        switch rawValue {
-        case "usd":
-            self = .usdt
-        default:
-            return nil
-        }
-    }
-}
-
 protocol OHLCDataProvider {
-    func fetchOHLCData(symbol: String, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]>
+    func fetchOHLCData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]>
 }
 
-final class CoinScannerController {
+final class CoinScannerController: OHLCDataProvider {
     // MARK: - Nested Types
-    struct CachedOHLCData {
+    struct OHLCDataCache {
         var data: [String: [OHLCData]]
         var lastUpdatedAt: Date
     }
@@ -35,8 +18,15 @@ final class CoinScannerController {
     private init() {}
     
     // MARK: - Properties
-    var ohlcCache: [String: CachedOHLCData] = [:]
-    let cacheTTL: TimeInterval = 300
+    var ohlcCache: [String: OHLCDataCache] = [:]
+    let cacheTTL: [Timeframe: TimeInterval] = [
+        .oneHour: 60,       // 1 minute
+        .oneDay: 900,       // 15 minutes
+        .oneWeek: 3600,     // 1 hour
+        .oneMonth: 21600,   // 6 hours
+        .oneYear: 86400,    // 1 day
+        .all: 604800        // 1 week
+    ]
     
     // MARK: - Internal Methods
     func startFetchingCoinsPeriodically(
@@ -50,7 +40,6 @@ final class CoinScannerController {
     ) {
         let eventLoop = app.eventLoopGroup.next()
         
-        // Task for fetching and saving coins
         eventLoop.scheduleRepeatedTask(initialDelay: .seconds(5), delay: coinFetchInterval) { [weak self] task in
             let req = Request(application: app, on: eventLoop)
             self?.fetchAllCoins(on: req, currency: currency, totalCoins: totalCoins, perPage: perPage)
@@ -63,7 +52,6 @@ final class CoinScannerController {
                 }
         }
         
-        // Task for updating prices
         eventLoop.scheduleRepeatedTask(initialDelay: .minutes(3), delay: priceUpdateInterval) { [weak self] task in
             let req = Request(application: app, on: eventLoop)
             self?.updateMarketData(for: currency, on: req)
@@ -76,7 +64,6 @@ final class CoinScannerController {
                 }
         }
         
-        // Task for fetching global market data
         eventLoop.scheduleRepeatedTask(initialDelay: .seconds(10), delay: globalDataInterval) { [weak self] task in
             let req = Request(application: app, on: eventLoop)
             self?.fetchGlobalCryptoMarketData(on: req)
@@ -258,23 +245,25 @@ final class CoinScannerController {
         ]
         return urlComponents?.url
     }
-}
-
-// MARK: - OHLCDataProvider
-extension CoinScannerController: OHLCDataProvider {
-    func fetchOHLCData(symbol: String, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]> {
-        let promise = req.eventLoop.makePromise(of: [String: [OHLCData]].self)
+    
+    // MARK: - OHLCDataProvider
+    func fetchOHLCData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]> {
+        let symbol = symbol.uppercased()
+        let timeframeValue = timeframe.rawValue
+        let cacheKey = "\(symbol)_\(timeframeValue)"
+        let now = Date()
         
-        if let cache = ohlcCache[symbol],
-           Date().timeIntervalSince(cache.lastUpdatedAt) < cacheTTL {
-            print("Using cached data for \(symbol.uppercased())")
-            promise.succeed(cache.data)
-            return promise.futureResult
+        if let cachedData = ohlcCache[cacheKey],
+           let ttl = cacheTTL[timeframe],
+           now.timeIntervalSince(cachedData.lastUpdatedAt) < ttl {
+            print("Using cached data for \(cacheKey)")
+            return req.eventLoop.makeSucceededFuture(cachedData.data)
         }
         
-        let pair = mapCurrencyToPair(symbol: symbol.uppercased(), currency: currency)
-        let process = createProcess(symbol: pair)
+        let pair = mapCurrencyToPair(symbol: symbol, currency: currency)
+        let process = createProcess(symbol: pair, timeframe: timeframeValue)
         
+        let promise = req.eventLoop.makePromise(of: [String: [OHLCData]].self)
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         
@@ -286,17 +275,15 @@ extension CoinScannerController: OHLCDataProvider {
         }
         
         outputPipe.fileHandleForReading.readabilityHandler = { [weak self] fileHandle in
-            self?.handleProcessOutput(fileHandle, for: symbol, promise: promise)
+            self?.handleProcessOutput(
+                fileHandle,
+                for: cacheKey,
+                timeframe: timeframeValue,
+                promise: promise
+            )
         }
         
         return promise.futureResult
-    }
-    
-    private func createProcess(symbol: String) -> Process {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = ["/app/ohlc_data_fetcher.py", symbol]
-        return process
     }
     
     private func mapCurrencyToPair(symbol: String, currency: Currency) -> String {
@@ -307,7 +294,19 @@ extension CoinScannerController: OHLCDataProvider {
         }
     }
     
-    private func handleProcessOutput(_ fileHandle: FileHandle, for cacheKey: String, promise: EventLoopPromise<[String: [OHLCData]]>) {
+    private func createProcess(symbol: String, timeframe: String) -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = ["/app/ohlc_data_fetcher.py", symbol, timeframe]
+        return process
+    }
+    
+    private func handleProcessOutput(
+        _ fileHandle: FileHandle,
+        for cacheKey: String,
+        timeframe: String,
+        promise: EventLoopPromise<[String: [OHLCData]]>
+    ) {
         let data = fileHandle.availableData
         
         guard !data.isEmpty else {
@@ -320,33 +319,30 @@ extension CoinScannerController: OHLCDataProvider {
             return
         }
         
-        print(rawOutput)
+        print("Raw output from script: \(rawOutput)")
         
-        guard let outputPath = extractOutputPath(from: rawOutput) else {
-            promise.fail(Abort(.internalServerError, reason: "Unable to parse output path from Python script"))
-            return
-        }
-        
-        decodeAndCacheData(from: outputPath, for: cacheKey, promise: promise)
-    }
-    
-    private func extractOutputPath(from rawOutput: String) -> String? {
-        rawOutput.components(separatedBy: "Path:").last?.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    private func decodeAndCacheData(from outputPath: String, for cacheKey: String, promise: EventLoopPromise<[String: [OHLCData]]>) {
-        guard let jsonData = try? Data(contentsOf: URL(fileURLWithPath: outputPath)) else {
-            promise.fail(Abort(.internalServerError, reason: "Failed to load data from file path"))
-            return
-        }
         do {
-            let ohlcResponse = try JSONDecoder().decode([String: [OHLCData]].self, from: jsonData)
-            ohlcCache[cacheKey] = CachedOHLCData(data: ohlcResponse, lastUpdatedAt: Date())
-            print("Cached data for \(cacheKey.uppercased())")
-            promise.succeed(ohlcResponse)
+            let fileResponse = try JSONDecoder().decode([String: String].self, from: Data(rawOutput.utf8))
+            guard let filePath = fileResponse["file_path"] else {
+                promise.fail(Abort(.internalServerError, reason: "File path not found in script output"))
+                return
+            }
+            
+            print("Data file path: \(filePath)")
+            
+            let fileData = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            let ohlcResponse = try JSONDecoder().decode([[Double]].self, from: fileData)
+            
+            let ohlcData = ohlcResponse.compactMap { entry -> OHLCData? in
+                guard entry.count == 2 else { return nil }
+                return OHLCData(timestamp: Int(entry[0]), close: entry[1])
+            }
+            
+            let response: [String: [OHLCData]] = [timeframe: ohlcData]
+            ohlcCache[cacheKey] = OHLCDataCache(data: response, lastUpdatedAt: Date())
+            promise.succeed(response)
         } catch {
-            promise.fail(error)
-            print("Decoding error: \(error)")
+            promise.fail(Abort(.internalServerError, reason: "Failed to parse data from file"))
         }
     }
 }

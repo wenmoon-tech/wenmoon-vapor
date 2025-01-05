@@ -7,7 +7,7 @@ class OHLCDataProviderMock: OHLCDataProvider {
     var shouldFail = false
     
     // MARK: - OHLCDataProvider
-    func fetchOHLCData(symbol: String, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]> {
+    func fetchOHLCData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]> {
         let promise = req.eventLoop.makePromise(of: [String: [OHLCData]].self)
         
         if shouldFail {
