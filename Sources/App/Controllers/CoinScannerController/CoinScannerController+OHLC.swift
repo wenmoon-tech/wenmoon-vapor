@@ -2,28 +2,28 @@ import Fluent
 import FluentPostgresDriver
 import Vapor
 
-protocol OHLCDataProvider {
-    func fetchOHLCData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]>
+protocol ChartDataProvider {
+    func fetchChartData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[ChartData]>
 }
 
-extension CoinScannerController: OHLCDataProvider {
-    func fetchOHLCData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[String: [OHLCData]]> {
+extension CoinScannerController: ChartDataProvider {
+    func fetchChartData(symbol: String, timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[ChartData]> {
         let symbol = symbol.uppercased()
-        let timeframeValue = timeframe.rawValue
-        let cacheKey = "\(symbol)_\(timeframeValue)"
+        let cacheKey = "\(symbol)_\(timeframe.rawValue)"
         let now = Date()
         
-        if let cachedData = ohlcCache[cacheKey],
+        if let cachedChartData = chartDataCache[cacheKey],
            let ttl = cacheTTL[timeframe],
-           now.timeIntervalSince(cachedData.lastUpdatedAt) < ttl {
+           let chartData = cachedChartData.data[timeframe],
+           now.timeIntervalSince(cachedChartData.lastUpdatedAt) < ttl {
             print("Using cached data for \(cacheKey)")
-            return req.eventLoop.makeSucceededFuture(cachedData.data)
+            return req.eventLoop.makeSucceededFuture(chartData)
         }
         
         let pair = mapCurrencyToPair(symbol: symbol, currency: currency)
-        let process = createProcess(symbol: pair, timeframe: timeframeValue)
+        let process = createProcess(symbol: pair, timeframe: timeframe)
         
-        let promise = req.eventLoop.makePromise(of: [String: [OHLCData]].self)
+        let promise = req.eventLoop.makePromise(of: [ChartData].self)
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
         
@@ -38,7 +38,7 @@ extension CoinScannerController: OHLCDataProvider {
             self?.handleProcessOutput(
                 fileHandle,
                 for: cacheKey,
-                timeframe: timeframeValue,
+                timeframe: timeframe,
                 promise: promise
             )
         }
@@ -53,18 +53,18 @@ extension CoinScannerController: OHLCDataProvider {
         }
     }
     
-    private func createProcess(symbol: String, timeframe: String) -> Process {
+    private func createProcess(symbol: String, timeframe: Timeframe) -> Process {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = ["/app/ohlc_data_fetcher.py", symbol, timeframe]
+        process.arguments = ["/app/ohlc_data_fetcher.py", symbol, timeframe.rawValue]
         return process
     }
     
     private func handleProcessOutput(
         _ fileHandle: FileHandle,
         for cacheKey: String,
-        timeframe: String,
-        promise: EventLoopPromise<[String: [OHLCData]]>
+        timeframe: Timeframe,
+        promise: EventLoopPromise<[ChartData]>
     ) {
         let data = fileHandle.availableData
         guard !data.isEmpty else {
@@ -75,7 +75,7 @@ extension CoinScannerController: OHLCDataProvider {
             promise.fail(Abort(.internalServerError, reason: "Failed to convert data to String"))
             return
         }
-
+        
         do {
             let fileResponse = try JSONDecoder().decode([String: String].self, from: Data(rawOutput.utf8))
             guard let filePath = fileResponse["file_path"] else {
@@ -84,16 +84,16 @@ extension CoinScannerController: OHLCDataProvider {
             }
             
             let fileData = try Data(contentsOf: URL(fileURLWithPath: filePath))
-            let ohlcResponse = try JSONDecoder().decode([[Double]].self, from: fileData)
+            let chartDataResponse = try JSONDecoder().decode([[Double]].self, from: fileData)
             
-            let ohlcData = ohlcResponse.compactMap { entry -> OHLCData? in
+            let chartData = chartDataResponse.compactMap { entry -> ChartData? in
                 guard entry.count == 2 else { return nil }
-                return OHLCData(timestamp: Int(entry[0]), close: entry[1])
+                return ChartData(timestamp: Int(entry[0]), close: entry[1])
             }
             
-            let response: [String: [OHLCData]] = [timeframe: ohlcData]
-            ohlcCache[cacheKey] = OHLCDataCache(data: response, lastUpdatedAt: Date())
-            promise.succeed(response)
+            let dataToCache = [timeframe: chartData]
+            chartDataCache[cacheKey] = ChartDataCache(data: dataToCache, lastUpdatedAt: Date())
+            promise.succeed(chartData)
         } catch {
             promise.fail(Abort(.internalServerError, reason: "Failed to parse data from file"))
         }

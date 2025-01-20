@@ -4,8 +4,8 @@ import Vapor
 
 final class CoinScannerController {
     // MARK: - Nested Types
-    struct OHLCDataCache {
-        var data: [String: [OHLCData]]
+    struct ChartDataCache {
+        var data: [Timeframe: [ChartData]]
         var lastUpdatedAt: Date
     }
     
@@ -14,9 +14,8 @@ final class CoinScannerController {
     private init() {}
     
     // MARK: - Properties
-    var ohlcCache: [String: OHLCDataCache] = [:]
+    var chartDataCache: [String: ChartDataCache] = [:]
     let cacheTTL: [Timeframe: TimeInterval] = [
-        .oneHour: 60,       // 1 minute
         .oneDay: 900,       // 15 minutes
         .oneWeek: 3600,     // 1 hour
         .oneMonth: 21600,   // 6 hours

@@ -7,7 +7,6 @@ from argparse import ArgumentParser
 
 # Define timeframes and aggregation settings
 timeframes = {
-    '1h': ('1m', 1 * 60 * 60 * 1000),  # Aggregates 1-minute data into 1-hour
     '1d': ('15m', 24 * 60 * 60 * 1000),  # Aggregates 15-minute data into 1-day
     '1w': ('1h', 7 * 24 * 60 * 60 * 1000),  # Aggregates 1-hour data into 1-week
     '1M': ('6h', 30 * 24 * 60 * 60 * 1000),  # Aggregates 6-hour data into 1-month
@@ -16,12 +15,12 @@ timeframes = {
 }
 
 # List of exchanges to try in order
-exchanges_to_check = ["binance", "kucoin", "bitget", "okx", "gate", "mexc"]
+exchanges_to_check = ["kucoin", "bitget", "mexc"]
 
 # Parse arguments
 parser = ArgumentParser()
 parser.add_argument("symbol", help="Symbol to fetch data for (e.g., BTC/USDT)")
-parser.add_argument("timeframe", help="Timeframe to fetch (e.g., 1h, 1d, 1w, etc.)")
+parser.add_argument("timeframe", help="Timeframe to fetch (e.g., 1d, 1w, 1M etc.)")
 parser.add_argument("--output_dir", default="/tmp/output_data", help="Directory to write output files")
 args = parser.parse_args()
 

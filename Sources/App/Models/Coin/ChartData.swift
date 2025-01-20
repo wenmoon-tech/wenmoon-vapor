@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-struct OHLCData: Content, Decodable {
+struct ChartData: Content, Decodable {
     // MARK: - Properties
     let timestamp: Int
     let close: Double

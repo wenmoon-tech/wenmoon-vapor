@@ -1,8 +1,8 @@
 import Fluent
 import Vapor
 
-struct OHLCDataProviderKey: StorageKey {
-    typealias Value = OHLCDataProvider
+struct ChartDataProviderKey: StorageKey {
+    typealias Value = ChartDataProvider
 }
 
 func routes(_ app: Application) throws {
@@ -91,7 +91,7 @@ func routes(_ app: Application) throws {
             }
     }
     
-    app.get("ohlc") { req -> EventLoopFuture<[String: [OHLCData]]> in
+    app.get("chart-data") { req -> EventLoopFuture<[ChartData]> in
         guard let symbol = try? req.query.get(String.self, at: "symbol"), !symbol.isEmpty else {
             throw Abort(.badRequest, reason: "Query parameter 'symbol' is invalid or missing")
         }
@@ -104,8 +104,8 @@ func routes(_ app: Application) throws {
             throw Abort(.badRequest, reason: "Query parameter 'currency' is invalid or missing")
         }
         
-        let provider: OHLCDataProvider = req.application.storage[OHLCDataProviderKey.self] ?? CoinScannerController.shared
-        return provider.fetchOHLCData(symbol: symbol, timeframe: timeframe, currency: currency, req: req)
+        let provider: ChartDataProvider = req.application.storage[ChartDataProviderKey.self] ?? CoinScannerController.shared
+        return provider.fetchChartData(symbol: symbol, timeframe: timeframe, currency: currency, req: req)
     }
     
     // MARK: - Global Market Data

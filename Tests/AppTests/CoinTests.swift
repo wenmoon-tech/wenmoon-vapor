@@ -5,14 +5,14 @@ import XCTVapor
 final class CoinTests: XCTestCase {
     // MARK: - Properties
     var app: Application!
-    var provider: OHLCDataProviderMock!
+    var provider: ChartDataProviderMock!
     var headers: HTTPHeaders!
     
     // MARK: - Setup
     override func setUp() async throws {
         app = try await Application.testable()
-        provider = OHLCDataProviderMock()
-        app.storage[OHLCDataProviderKey.self] = provider
+        provider = ChartDataProviderMock()
+        app.storage[ChartDataProviderKey.self] = provider
         headers = HTTPHeaders(
             [("X-API-Key", "9178693a7845b10ce1cedfe571f0682b9051aa793c41545739ce724f3ae272db")]
         )
@@ -181,46 +181,46 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetOHLC_success() async throws {
+    func testGetChartData_success() async throws {
         // Setup
-        let ohlcData = makeOHLCDataForTimeframes()
-        provider.data = ohlcData
-
+        let chartDataForTimeframes = makeChartDataForTimeframes()
+        provider.data = chartDataForTimeframes
+        
         // Action
-        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
-            let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
-            assertOHLCDataEqual(receivedOHLCData, ohlcData)
+            let receivedChartData = try response.content.decode([ChartData].self)
+            assertChartDataEqual(receivedChartData, chartDataForTimeframes[.oneDay]!)
         }
     }
     
-    func testGetOHLC_invalidOrMissingParameter() async throws {
+    func testGetChartData_invalidOrMissingParameter() async throws {
         // Action: Make a request without the required `timeframe` query parameter
-        try app.test(.GET, "ohlc?symbol=coin-1&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data?symbol=coin-1&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'timeframe' is invalid or missing"))
         }
         
         // Action: Make a request with an invalid value for the `currency` query parameter
-        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=invalid", headers: headers) { response in
+        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=invalid", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'currency' is invalid or missing"))
         }
     }
-
-    func testGetOHLC_emptyResponse() async throws {
+    
+    func testGetChartData_emptyResponse() async throws {
         // Setup
         provider.data = [:]
         
         // Action
-        try app.test(.GET, "ohlc?symbol=coin-1&timeframe=1h&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
-            let receivedOHLCData = try response.content.decode([String: [OHLCData]].self)
-            XCTAssertTrue(receivedOHLCData.isEmpty)
+            let receivedChartData = try response.content.decode([ChartData].self)
+            XCTAssertTrue(receivedChartData.isEmpty)
         }
     }
     
@@ -362,32 +362,28 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    // OHLC
-    private func makeOHLCData(
+    // Chart Data
+    private func makeChartData(
         timestamp: Int = Int(Date().timeIntervalSince1970),
         close: Double = .random(in: 1.0...100.0)
-    ) -> OHLCData {
-        OHLCData(timestamp: timestamp, close: close)
+    ) -> ChartData {
+        ChartData(timestamp: timestamp, close: close)
     }
-
-    private func makeOHLCDataForTimeframes(timeframes: [Timeframe] = Timeframe.allCases) -> [String: [OHLCData]] {
-        var data: [String: [OHLCData]] = [:]
+    
+    private func makeChartDataForTimeframes(timeframes: [Timeframe] = Timeframe.allCases) -> [Timeframe: [ChartData]] {
+        var data: [Timeframe: [ChartData]] = [:]
         for timeframe in timeframes {
-            data[timeframe.rawValue] = (1...5).map { _ in makeOHLCData() }
+            data[timeframe] = (1...5).map { _ in makeChartData() }
         }
         return data
     }
-
-    private func assertOHLCDataEqual(_ received: [String: [OHLCData]], _ expected: [String: [OHLCData]]) {
-        XCTAssertEqual(received.keys.sorted(), expected.keys.sorted())
-        for key in expected.keys {
-            let receivedData = received[key] ?? []
-            let expectedData = expected[key] ?? []
-            XCTAssertEqual(receivedData.count, expectedData.count)
-            for (index, data) in receivedData.enumerated() {
-                XCTAssertEqual(data.timestamp, expectedData[index].timestamp)
-                XCTAssertEqual(data.close, expectedData[index].close)
-            }
+    
+    private func assertChartDataEqual(_ received: [ChartData], _ expected: [ChartData]) {
+        XCTAssertEqual(received.count, expected.count)
+        for (index, receivedData) in received.enumerated() {
+            let expectedData = expected[index]
+            XCTAssertEqual(receivedData.timestamp, expectedData.timestamp)
+            XCTAssertEqual(receivedData.close, expectedData.close)
         }
     }
 }
