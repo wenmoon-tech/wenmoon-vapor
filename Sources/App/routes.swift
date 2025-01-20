@@ -90,22 +90,57 @@ func routes(_ app: Application) throws {
                 return marketDataDict
             }
     }
+
+    app.get("chart-data", "cache") { req -> EventLoopFuture<[ChartData]> in
+        do {
+            let (symbol, timeframe, currency) = try validateQueryParams(req)
+            let provider = getProvider(req)
+            return provider.fetchCachedChartData(for: symbol, on: timeframe, currency: currency, req: req)
+        } catch {
+            return req.eventLoop.makeFailedFuture(error)
+        }
+    }
+
+    app.get("chart-data", "cache-refresh") { req -> EventLoopFuture<Response> in
+        guard let symbolsString = try? req.query.get(String.self, at: "symbols"), !symbolsString.isEmpty else {
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'symbols' is required"))
+        }
+        
+        let symbols = symbolsString.split(separator: ",").map(String.init)
+        let provider = getProvider(req)
+        let reqEventLoop = req.eventLoop
+        
+        let futures: [EventLoopFuture<[ChartData]>] = symbols.flatMap { symbol in
+            Timeframe.allCases.compactMap { timeframe in
+                provider.fetchChartDataIfNeeded(for: symbol, on: timeframe, currency: .usd, req: req)
+            }
+        }
+        return EventLoopFuture.andAllSucceed(futures, on: reqEventLoop)
+            .transform(to: Response(status: .ok))
+    }
     
-    app.get("chart-data") { req -> EventLoopFuture<[ChartData]> in
-        guard let symbol = try? req.query.get(String.self, at: "symbol"), !symbol.isEmpty else {
-            throw Abort(.badRequest, reason: "Query parameter 'symbol' is invalid or missing")
+    func validateQueryParams(_ req: Request) throws -> (String, Timeframe, Currency) {
+        func getQueryParam<T: Decodable>(_ key: String) throws -> T {
+            do {
+                let value = try req.query.get(T.self, at: key)
+                if let strValue = value as? String, strValue.isEmpty {
+                    throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
+                }
+                return value
+            } catch {
+                throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
+            }
         }
-        
-        guard let timeframe = try? req.query.get(Timeframe.self, at: "timeframe") else {
-            throw Abort(.badRequest, reason: "Query parameter 'timeframe' is invalid or missing")
-        }
-        
-        guard let currency = try? req.query.get(Currency.self, at: "currency") else {
-            throw Abort(.badRequest, reason: "Query parameter 'currency' is invalid or missing")
-        }
-        
-        let provider: ChartDataProvider = req.application.storage[ChartDataProviderKey.self] ?? CoinScannerController.shared
-        return provider.fetchChartData(symbol: symbol, timeframe: timeframe, currency: currency, req: req)
+
+        let symbol: String = try getQueryParam("symbol")
+        let timeframe: Timeframe = try getQueryParam("timeframe")
+        let currency: Currency = try getQueryParam("currency")
+
+        return (symbol, timeframe, currency)
+    }
+    
+    func getProvider(_ req: Request) -> ChartDataProvider {
+        req.application.storage[ChartDataProviderKey.self] ?? CoinScannerController.shared
     }
     
     // MARK: - Global Market Data

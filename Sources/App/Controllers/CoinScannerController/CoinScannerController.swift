@@ -12,22 +12,23 @@ final class CoinScannerController {
     // MARK: - Singleton
     static let shared: CoinScannerController = .init()
     private init() {}
-    
+
     // MARK: - Properties
     var chartDataCache: [String: ChartDataCache] = [:]
-    let cacheTTL: [Timeframe: TimeInterval] = [
+    var cacheTTL: [Timeframe: TimeInterval] = [
         .oneDay: 900,       // 15 minutes
         .oneWeek: 3600,     // 1 hour
         .oneMonth: 21600,   // 6 hours
         .oneYear: 86400,    // 1 day
         .all: 604800        // 1 week
     ]
-    
+    var inProgressChartDataFetches: [String: EventLoopFuture<[ChartData]>] = [:]
+
     // MARK: - Internal Methods
     func startFetchingCoinsPeriodically(
         app: Application,
         currency: String = "usd",
-        totalCoins: Int = 1000,
+        totalCoins: Int = 250,
         perPage: Int = 250,
         coinFetchInterval: TimeAmount = .minutes(30),
         priceUpdateInterval: TimeAmount = .minutes(3),
@@ -81,7 +82,7 @@ final class CoinScannerController {
                 }
         }
     }
-    
+
     func makeURLRequest(url: URL) -> ClientRequest {
         let headers = HTTPHeaders([("User-Agent", "VaporApp/1.0")])
         return ClientRequest(method: .GET, url: URI(string: url.absoluteString), headers: headers)

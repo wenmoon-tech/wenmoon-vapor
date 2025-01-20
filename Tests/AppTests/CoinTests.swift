@@ -181,13 +181,42 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetChartData_success() async throws {
+    func testChartDataCacheRefresh_success() async throws {
         // Setup
+        let symbol = "C-1"
         let chartDataForTimeframes = makeChartDataForTimeframes()
-        provider.data = chartDataForTimeframes
+        provider.chartData[symbol] = chartDataForTimeframes
+
+        // Action
+        try app.test(.GET, "chart-data/cache-refresh/?symbols=\(symbol)", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let cachedChartData = provider.cachedChartData[symbol]!
+            for timeframe in Timeframe.allCases {
+                let receivedChartData = cachedChartData[timeframe]!
+                let expectedChartData = chartDataForTimeframes[timeframe]!
+                assertChartDataEqual(receivedChartData, expectedChartData)
+            }
+        }
+    }
+
+    func testChartDataCacheRefresh_missingSymbols() async throws {
+        // Action
+        try app.test(.GET, "chart-data/cache-refresh/", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Query parameter 'symbols' is required"))
+        }
+    }
+    
+    func testGetCachedChartData_success() async throws {
+        // Setup
+        let symbol = "C-1"
+        let chartDataForTimeframes = makeChartDataForTimeframes()
+        provider.cachedChartData[symbol] = chartDataForTimeframes
         
         // Action
-        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data/cache/?symbol=\(symbol)&timeframe=1d&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedChartData = try response.content.decode([ChartData].self)
@@ -195,28 +224,35 @@ final class CoinTests: XCTestCase {
         }
     }
     
-    func testGetChartData_invalidOrMissingParameter() async throws {
+    func testGetCachedChartData_invalidOrMissingParameter() async throws {
         // Action: Make a request without the required `timeframe` query parameter
-        try app.test(.GET, "chart-data?symbol=coin-1&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data/cache/?timeframe=1d&currency=usd", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .badRequest)
+            XCTAssert(response.body.string.contains("Query parameter 'symbol' is invalid or missing"))
+        }
+        
+        // Action: Make a request with an invalid value for the `timeframe` query parameter
+        try app.test(.GET, "chart-data/cache/?symbol=coin-1&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'timeframe' is invalid or missing"))
         }
         
         // Action: Make a request with an invalid value for the `currency` query parameter
-        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=invalid", headers: headers) { response in
+        try app.test(.GET, "chart-data/cache/?symbol=coin-1&timeframe=1d&currency=invalid", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'currency' is invalid or missing"))
         }
     }
     
-    func testGetChartData_emptyResponse() async throws {
+    func testGetCachedChartData_emptyResponse() async throws {
         // Setup
-        provider.data = [:]
+        provider.chartData = [:]
         
         // Action
-        try app.test(.GET, "chart-data?symbol=coin-1&timeframe=1d&currency=usd", headers: headers) { response in
+        try app.test(.GET, "chart-data/cache/?symbol=coin-1&timeframe=1d&currency=usd", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .ok)
             let receivedChartData = try response.content.decode([ChartData].self)
@@ -228,7 +264,7 @@ final class CoinTests: XCTestCase {
     // Make/Create Coin
     private func makeCoin(
         id: String = "coin-1",
-        symbol: String = "c-1",
+        symbol: String = "C-1",
         name: String = "Coin 1",
         image: String? = nil,
         currentPrice: Double? = .random(in: 0.01...100000),

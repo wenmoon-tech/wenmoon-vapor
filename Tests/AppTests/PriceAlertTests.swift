@@ -168,7 +168,7 @@ final class PriceAlertTests: XCTestCase {
     // Make/Create Price Alert
     private func makePriceAlert(
         id: String = "price-alert-1",
-        symbol: String = "c-1",
+        symbol: String = "C-1",
         targetPrice: Double = .random(in: 0.01...100000),
         targetDirection: PriceAlert.TargetDirection = Bool.random() ? .below : .above,
         userID: String = "example.email@gmail.com",
@@ -188,7 +188,7 @@ final class PriceAlertTests: XCTestCase {
         (1...count).map { index in
             makePriceAlert(
                 id: "price-alert-\(index)",
-                symbol: "c-\(index)"
+                symbol: "C-\(index)"
             )
         }
     }
