@@ -1,9 +1,9 @@
-import NIOSSL
-import JWTKit
+import Vapor
 import Fluent
 import FluentPostgresDriver
+import NIOSSL
+import JWTKit
 import APNS
-import Vapor
 
 public func configure(_ app: Application) async throws {
     if let databaseURL = Environment.get("DATABASE_URL"),
@@ -30,23 +30,12 @@ public func configure(_ app: Application) async throws {
         ), as: .psql)
     }
     
-    app.migrations.add(
-        [
-            CreatePriceAlert(),
-            CreateCoin(),
-            CreateGlobalCryptoMarketData(),
-            CreateGlobalMarketData()
-        ]
-    )
+    app.migrations.add([CreatePriceAlert()])
     
     try await app.autoMigrate()
     
     app.middleware.use(APIKeyMiddleware())
     try routes(app)
-    
-    if app.environment != .testing {
-        CoinScannerController.shared.startFetchingCoinsPeriodically(app: app)
-    }
     
     //try configureAPNS(app)
     //schedulePriceCheck(app)

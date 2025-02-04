@@ -139,15 +139,15 @@ final class PriceAlertTests: XCTestCase {
         }
     }
     
-    func testDeletePriceAlert_invalidCoinID() async throws {
+    func testDeletePriceAlert_invalidID() async throws {
         // Setup
-        let invalidCoinID = "invalid-coin-id"
+        let invalidID = "invalid-id"
         
         // Action
-        try app.test(.DELETE, "users/\(userID!)/price-alert/\(invalidCoinID)", headers: headers) { response in
+        try app.test(.DELETE, "users/\(userID!)/price-alert/\(invalidID)", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .notFound)
-            XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin id: \(invalidCoinID) for user id: \(userID!)"))
+            XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin ID: \(invalidID) for user ID: \(userID!)"))
         }
     }
     
@@ -160,7 +160,7 @@ final class PriceAlertTests: XCTestCase {
         try app.test(.DELETE, "users/\(userID!)/price-alert/\(priceAlert.id!)", headers: headers) { response in
             // Assertions
             XCTAssertEqual(response.status, .notFound)
-            XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin id: \(priceAlert.id!) for user id: \(userID!)"))
+            XCTAssertTrue(response.body.string.contains("Could not find price alert with the following coin ID: \(priceAlert.id!) for user ID: \(userID!)"))
         }
     }
     

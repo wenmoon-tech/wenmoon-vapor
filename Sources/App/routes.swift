@@ -1,125 +1,82 @@
-import Fluent
 import Vapor
+import Fluent
 
-struct ChartDataProviderKey: StorageKey {
-    typealias Value = ChartDataProvider
+struct CoinInfoProviderKey: StorageKey {
+    typealias Value = CoinScannerService
 }
 
 func routes(_ app: Application) throws {
     // MARK: - Coins
     app.get("coins") { req -> EventLoopFuture<[Coin]> in
-        // Check if `ids` query parameter is provided
-        if let idsString = try? req.query.get(String.self, at: "ids") {
-            let ids = idsString.split(separator: ",").map { String($0) }
-            return Coin.query(on: req.db)
-                .filter(\.$id ~~ ids)
-                .sort(\.$marketCapRank, .ascending)
-                .all()
-        }
-        
-        // Default to pagination if `ids` is not provided
-        let page = (try? req.query.get(Int.self, at: "page")) ?? 1
-        let perPage = (try? req.query.get(Int.self, at: "per_page")) ?? 250
-        
-        guard page > 0, perPage > 0 else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Page and per_page must be positive integers"))
-        }
-        
-        let lowerBound = (page - 1) * perPage
-        let upperBound = lowerBound + perPage
-        
-        return Coin.query(on: req.db)
-            .sort(\.$marketCapRank, .ascending)
-            .range(lowerBound..<upperBound)
-            .all()
+        let provider = getProvider(req)
+        let currency = (try? req.query.get(Currency.self, at: "currency")) ?? .usd
+        let page = (try? req.query.get(Int64.self, at: "page")) ?? 1
+        let perPage = (try? req.query.get(Int64.self, at: "per_page")) ?? 250
+        return provider.fetchCoins(onPage: page, perPage: perPage, currency: currency, req: req)
     }
     
-    app.get("search") { req -> EventLoopFuture<[Coin]> in
-        guard let searchTerm = try? req.query.get(String.self, at: "query").lowercased(),
-              !searchTerm.isEmpty else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'query' is required"))
+    app.get("coin-details") { req -> EventLoopFuture<CoinDetails> in
+        guard let id = try? req.query.get(String.self, at: "id"), !id.isEmpty else {
+            return req.eventLoop.makeFailedFuture(
+                Abort(.badRequest, reason: "Query parameter 'id' is required")
+            )
         }
-        
-        return Coin.query(on: req.db)
-            .group(.or) { group in
-                group
-                    .filter(\.$name ~~ searchTerm)
-                    .filter(\.$id ~~ searchTerm)
-                    .filter(\.$symbol ~~ searchTerm)
-            }
-            .sort(\.$marketCapRank, .ascending)
-            .all()
+        let provider = getProvider(req)
+        return provider.fetchCoinDetails(for: id, req: req)
     }
     
-    app.get("market-data") { req -> EventLoopFuture<[String: MarketData]> in
-        guard let idsString = try? req.query.get(String.self, at: "ids"), !idsString.isEmpty else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'ids' is required"))
-        }
-        
-        let ids = idsString.split(separator: ",").map { String($0) }
-        
-        return Coin.query(on: req.db)
-            .filter(\.$id ~~ ids)
-            .all()
-            .map { coins in
-                var marketDataDict: [String: MarketData] = [:]
-                for coin in coins {
-                    let marketData = MarketData(
-                        currentPrice: coin.currentPrice,
-                        marketCap: coin.marketCap,
-                        marketCapRank: coin.marketCapRank,
-                        fullyDilutedValuation: coin.fullyDilutedValuation,
-                        totalVolume: coin.totalVolume,
-                        high24H: coin.high24H,
-                        low24H: coin.low24H,
-                        priceChange24H: coin.priceChange24H,
-                        priceChangePercentage24H: coin.priceChangePercentage24H,
-                        marketCapChange24H: coin.marketCapChange24H,
-                        marketCapChangePercentage24H: coin.marketCapChangePercentage24H,
-                        circulatingSupply: coin.circulatingSupply,
-                        totalSupply: coin.totalSupply,
-                        ath: coin.ath,
-                        athChangePercentage: coin.athChangePercentage,
-                        athDate: coin.athDate,
-                        atl: coin.atl,
-                        atlChangePercentage: coin.atlChangePercentage,
-                        atlDate: coin.atlDate
-                    )
-                    marketDataDict[coin.id!] = marketData
-                }
-                return marketDataDict
-            }
-    }
-
-    app.get("chart-data", "cache") { req -> EventLoopFuture<[ChartData]> in
+    app.get("chart-data") { req -> EventLoopFuture<[ChartData]> in
         do {
-            let (symbol, timeframe, currency) = try validateQueryParams(req)
+            let (id, timeframe, currency) = try validateChartDataQueryParams(req)
             let provider = getProvider(req)
-            return provider.fetchCachedChartData(for: symbol, on: timeframe, currency: currency, req: req)
+            return provider.fetchChartData(for: id, on: timeframe, currency: currency, req: req)
         } catch {
             return req.eventLoop.makeFailedFuture(error)
         }
     }
-
-    app.get("chart-data", "cache-refresh") { req -> EventLoopFuture<Response> in
-        guard let symbolsString = try? req.query.get(String.self, at: "symbols"), !symbolsString.isEmpty else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Query parameter 'symbols' is required"))
+    
+    // MARK: - Search
+    app.get("search") { req -> EventLoopFuture<[Coin]> in
+        guard let query = try? req.query.get(String.self, at: "query"), !query.isEmpty else {
+            return req.eventLoop.makeFailedFuture(
+                Abort(.badRequest, reason: "Query parameter 'query' is required")
+            )
         }
-        
-        let symbols = symbolsString.split(separator: ",").map(String.init)
         let provider = getProvider(req)
-        let reqEventLoop = req.eventLoop
-        
-        let futures: [EventLoopFuture<[ChartData]>] = symbols.flatMap { symbol in
-            Timeframe.allCases.compactMap { timeframe in
-                provider.fetchChartDataIfNeeded(for: symbol, on: timeframe, currency: .usd, req: req)
-            }
-        }
-        return EventLoopFuture.andAllSucceed(futures, on: reqEventLoop)
-            .transform(to: Response(status: .ok))
+        return provider.searchCoins(by: query, req: req)
     }
     
-    func validateQueryParams(_ req: Request) throws -> (String, Timeframe, Currency) {
+    // MARK: - Market Data
+    app.get("market-data") { req -> EventLoopFuture<[String: MarketData]> in
+        let provider = getProvider(req)
+        guard let idsString = try? req.query.get(String.self, at: "ids"), !idsString.isEmpty else {
+            return req.eventLoop.makeFailedFuture(
+                Abort(.badRequest, reason: "Query parameter 'ids' is required")
+            )
+        }
+        let ids = idsString.split(separator: ",").map { String($0) }
+        let currency = (try? req.query.get(Currency.self, at: "currency")) ?? .usd
+        return provider.fetchMarketData(for: ids, currency: currency, req: req)
+    }
+    
+    // MARK: - Global Market Data
+    app.get("global-crypto-market-data") { req -> EventLoopFuture<GlobalCryptoMarketData> in
+        let provider = getProvider(req)
+        return provider.fetchGlobalCryptoMarketData(req: req)
+    }
+    
+    app.get("global-market-data") { req -> EventLoopFuture<GlobalMarketData> in
+        req.eventLoop.makeSucceededFuture(
+            GlobalMarketData(
+                cpiPercentage: 2.7,
+                nextCPITimestamp: 1736947800,
+                interestRatePercentage: 4.5,
+                nextFOMCMeetingTimestamp: 1734548400
+            )
+        )
+    }
+    
+    func validateChartDataQueryParams(_ req: Request) throws -> (String, Timeframe, Currency) {
         func getQueryParam<T: Decodable>(_ key: String) throws -> T {
             do {
                 let value = try req.query.get(T.self, at: key)
@@ -131,44 +88,16 @@ func routes(_ app: Application) throws {
                 throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
             }
         }
-
-        let symbol: String = try getQueryParam("symbol")
+        
+        let id: String = try getQueryParam("id")
         let timeframe: Timeframe = try getQueryParam("timeframe")
         let currency: Currency = try getQueryParam("currency")
-
-        return (symbol, timeframe, currency)
+        
+        return (id, timeframe, currency)
     }
     
-    func getProvider(_ req: Request) -> ChartDataProvider {
-        req.application.storage[ChartDataProviderKey.self] ?? CoinScannerController.shared
-    }
-    
-    // MARK: - Global Market Data
-    app.get("global-crypto-market-data") { req -> EventLoopFuture<GlobalCryptoMarketData> in
-        GlobalCryptoMarketData.query(on: req.db)
-            .first()
-            .flatMapThrowing { globalData -> GlobalCryptoMarketData in
-                guard let globalData else {
-                    throw Abort(.notFound, reason: "No global crypto market data found")
-                }
-                return globalData
-            }
-    }
-    
-    app.get("global-market-data") { req -> EventLoopFuture<GlobalMarketData> in
-        GlobalMarketData.query(on: req.db)
-            .first()
-            .flatMapThrowing { globalData -> GlobalMarketData in
-                guard let globalData else {
-                    return GlobalMarketData(
-                        cpiPercentage: 2.7,
-                        nextCPITimestamp: 1736947800,
-                        interestRatePercentage: 4.5,
-                        nextFOMCMeetingTimestamp: 1734548400
-                    )
-                }
-                return globalData
-            }
+    func getProvider(_ req: Request) -> CoinScannerService {
+        req.application.storage[CoinInfoProviderKey.self] ?? CoinScannerServiceImpl.shared
     }
     
     // MARK: - Price Alerts
@@ -265,7 +194,7 @@ func routes(_ app: Application) throws {
                         Abort(
                             .notFound,
                             headers: headers,
-                            reason: "Could not find price alert with the following coin id: \(id) for user id: \(userID)"
+                            reason: "Could not find price alert with the following coin ID: \(id) for user ID: \(userID)"
                         )
                     )
                 }

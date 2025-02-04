@@ -3,11 +3,10 @@
 # ================================
 FROM swift:5.8-jammy as build
 
-# Install OS updates and dependencies, including python3 for building
+# Install OS updates and, if needed, sqlite3
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
     && apt-get -q dist-upgrade -y \
-    && apt-get -q install -y python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up a build area
@@ -36,37 +35,25 @@ RUN find -L "$(swift build --package-path /build -c release --show-bin-path)/" -
 RUN [ -d /build/Public ] && { mv /build/Public ./Public && chmod -R a-w ./Public; } || true
 RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w ./Resources; } || true
 
-# Copy the Python script to staging
-COPY ohlc_data_fetcher.py /staging/ohlc_data_fetcher.py
-
 # ================================
 # Run image
 # ================================
 FROM ubuntu:jammy
 
-# Install Python and essential system packages, including pip and the required packages
+# Make sure all system packages are up to date, and install only essential packages.
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
     && apt-get -q dist-upgrade -y \
     && apt-get -q install -y \
       ca-certificates \
-      python3 \
-      python3-pip \
       tzdata \
     && rm -r /var/lib/apt/lists/*
-
-# Install Python dependencies (ccxt)
-COPY requirements.txt /app/requirements.txt
-RUN pip3 install -r /app/requirements.txt
 
 # Create a vapor user and group with /app as its home directory
 RUN useradd --user-group --create-home --system --skel /dev/null --home-dir /app vapor
 
 # Switch to the new home directory
 WORKDIR /app
-
-# Ensure vapor user has write access to the directory where the Python script saves data
-RUN mkdir -p /app/ohlc_data && chmod -R 777 /app/ohlc_data
 
 # Copy built executable and any staged resources from builder
 COPY --from=build --chown=vapor:vapor /staging /app
