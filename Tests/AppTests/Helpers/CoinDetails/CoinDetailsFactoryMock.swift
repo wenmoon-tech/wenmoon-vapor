@@ -69,53 +69,41 @@ struct CoinDetailsFactoryMock {
     
     static func makeCoinLinks() -> CoinDetails.Links {
         CoinDetails.Links(
-            homepage: ["https://bitcoin.org"],
-            whitepaper: "https://bitcoin.org/bitcoin.pdf",
-            blockchainSite: ["https://www.blockchain.com/explorer"],
-            officialForumURL: ["https://bitcointalk.org"],
-            chatURL: ["https://discord.com/invite/bitcoin"],
-            announcementURL: ["https://twitter.com/bitcoin"],
+            homepage: [URL(string: "https://bitcoin.org")!],
+            whitepaper: URL(string: "https://bitcoin.org/bitcoin.pdf")!,
+            blockchainSite: [URL(string: "https://www.blockchain.com/explorer")!],
+            chatUrl: [URL(string: "https://discord.com/invite/bitcoin")!],
+            announcementUrl: [URL(string: "https://twitter.com/bitcoin")!],
             twitterScreenName: "bitcoin",
-            facebookUsername: "bitcoin",
             telegramChannelIdentifier: "bitcoin",
-            subredditURL: "https://www.reddit.com/r/bitcoin/",
+            subredditUrl: URL(string: "https://www.reddit.com/r/bitcoin/")!,
             reposUrl: makeReposURL()
         )
     }
     
     static func makeReposURL() -> CoinDetails.Links.ReposURL {
         CoinDetails.Links.ReposURL(
-            github: ["https://github.com/bitcoin"],
-            bitbucket: nil
+            github: [URL(string: "https://github.com/bitcoin")!]
         )
     }
     
-    static func makeCoinTickers() -> [CoinDetails.Ticker] {
-        [
+    static func makeCoinTickers(count: Int = 5) -> [CoinDetails.Ticker] {
+        let marketNames = ["Binance", "Coinbase", "Kraken", "Bitstamp", "Crypto.com"]
+        let marketIdentifiers = ["binance", "coinbase", "kraken", "bitstamp", "crypto_com"]
+        return (0..<count).map { index in
             CoinDetails.Ticker(
-                base: "BTC",
+                base: "SYM-\(index)",
                 target: "USD",
                 market: CoinDetails.Ticker.Market(
-                    name: "Binance",
-                    identifier: "binance",
-                    hasTradingIncentive: false
+                    name: marketNames[index % marketNames.count],
+                    identifier: marketIdentifiers[index % marketIdentifiers.count],
+                    hasTradingIncentive: Bool.random()
                 ),
-                last: .random(in: 0.01...100_000),
-                volume: .random(in: 100_000...100_000_000),
                 convertedLast: ["usd": .random(in: 0.01...100_000)],
                 convertedVolume: ["usd": .random(in: 100_000...100_000_000)],
-                trustScore: "green",
-                bidAskSpreadPercentage: .random(in: 0.01...10),
-                timestamp: "2024-02-05T12:00:00Z",
-                lastTradedAt: "2024-02-05T12:00:00Z",
-                lastFetchAt: "2024-02-05T12:00:00Z",
-                isAnomaly: false,
-                isStale: false,
-                tradeURL: "https://binance.com/trade/BTC_USD",
-                tokenInfoURL: nil,
-                coinId: "bitcoin",
-                targetCoinId: "usd"
+                trustScore: [.green, .yellow, .red].randomElement(),
+                tradeUrl: URL(string: "https://\(marketIdentifiers[index % marketIdentifiers.count]).com/trade/SYM-\(index)")
             )
-        ]
+        }
     }
 }

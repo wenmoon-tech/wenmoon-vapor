@@ -1,7 +1,7 @@
 import Vapor
 
+// MARK: - CoinDetails
 struct CoinDetails: Content, Equatable {
-    // MARK: - Properties
     let id: String
     let marketData: MarketData
     let categories: [String]
@@ -14,8 +14,10 @@ struct CoinDetails: Content, Equatable {
     let sentimentVotesDownPercentage: Double?
     let watchlistPortfolioUsers: Int?
     let tickers: [Ticker]
+}
 
-    // MARK: - Nested Types
+// MARK: - MarketData
+extension CoinDetails {
     struct MarketData: Content, Equatable {
         struct CurrencyPrice: Content, Equatable {
             let usd: Double?
@@ -24,7 +26,7 @@ struct CoinDetails: Content, Equatable {
         struct CurrencyDate: Content, Equatable {
             let usd: String?
         }
-
+        
         let marketCapRank: Int64?
         let fullyDilutedValuation: CurrencyPrice
         let totalVolume: CurrencyPrice
@@ -42,54 +44,53 @@ struct CoinDetails: Content, Equatable {
         let atlChangePercentage: CurrencyPrice
         let atlDate: CurrencyDate
     }
+}
 
+// MARK: - Description
+extension CoinDetails {
     struct Description: Content, Equatable {
         let en: String?
     }
+}
 
+// MARK: - Links
+extension CoinDetails {
     struct Links: Content, Equatable {
         struct ReposURL: Content, Equatable {
-            let github: [String]?
-            let bitbucket: [String]?
+            let github: [URL]?
         }
-
-        let homepage: [String]?
-        let whitepaper: String?
-        let blockchainSite: [String]?
-        let officialForumUrl: [String]?
-        let chatUrl: [String]?
-        let announcementUrl: [String]?
+        
+        let homepage: [URL]?
+        let whitepaper: URL?
+        let blockchainSite: [URL]?
+        let chatUrl: [URL]?
+        let announcementUrl: [URL]?
         let twitterScreenName: String?
-        let facebookUsername: String?
         let telegramChannelIdentifier: String?
-        let subredditUrl: String?
+        let subredditUrl: URL?
         let reposUrl: ReposURL
     }
+}
 
+// MARK: - Ticker
+extension CoinDetails {
     struct Ticker: Content, Equatable {
         struct Market: Content, Equatable {
             let name: String?
             let identifier: String?
             let hasTradingIncentive: Bool?
         }
-
+        
+        enum TrustScore: String, Content {
+            case green, yellow, red
+        }
+        
         let base: String
         let target: String
         let market: Market
-        let last: Double?
-        let volume: Double?
         let convertedLast: [String: Double]?
         let convertedVolume: [String: Double]?
-        let trustScore: String?
-        let bidAskSpreadPercentage: Double?
-        let timestamp: String?
-        let lastTradedAt: String?
-        let lastFetchAt: String?
-        let isAnomaly: Bool?
-        let isStale: Bool?
-        let tradeUrl: String?
-        let tokenInfoUrl: String?
-        let coinId: String?
-        let targetCoinId: String?
+        let trustScore: TrustScore?
+        let tradeUrl: URL?
     }
 }
