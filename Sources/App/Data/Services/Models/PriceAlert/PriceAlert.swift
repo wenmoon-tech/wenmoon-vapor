@@ -4,6 +4,7 @@ import Fluent
 final class PriceAlert: Model, Content {
     static let schema = "price_alerts"
     
+    // MARK: - Nested Types
     enum TargetDirection: String, Content {
         case above = "ABOVE"
         case below = "BELOW"
@@ -47,12 +48,11 @@ final class PriceAlert: Model, Content {
         self.deviceToken = deviceToken
     }
     
-    // MARK: - Conding Keys
+    // MARK: - Codable
     private enum CodingKeys: String, CodingKey {
         case id, symbol, targetPrice = "target_price", targetDirection = "target_direction", userID = "user_id", deviceToken = "device_token"
     }
     
-    // MARK: - Decodable
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -63,7 +63,6 @@ final class PriceAlert: Model, Content {
         deviceToken = try container.decodeIfPresent(String.self, forKey: .deviceToken)
     }
     
-    // MARK: - Encodable
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(id, forKey: .id)

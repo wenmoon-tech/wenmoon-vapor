@@ -2,31 +2,31 @@ import Vapor
 
 struct Coin: Content, Equatable {
     // MARK: - Properties
-    var id: String?
-    var symbol: String
-    var name: String
-    var image: URL?
-    var currentPrice: Double?
-    var marketCap: Double?
-    var marketCapRank: Int64?
-    var priceChange24H: Double?
-    var priceChangePercentage24H: Double?
-    var circulatingSupply: Double?
-    var ath: Double?
+    let id: String?
+    let symbol: String
+    let name: String
+    let image: URL?
+    let currentPrice: Double?
+    let marketCap: Double?
+    let marketCapRank: Int64?
+    let priceChange24H: Double?
+    let priceChangePercentage24H: Double?
+    let circulatingSupply: Double?
+    let ath: Double?
     
     // MARK: - Initializer
     init(
-        id: String? = nil,
+        id: String?,
         symbol: String,
         name: String,
-        image: URL? = nil,
-        currentPrice: Double? = nil,
-        marketCap: Double? = nil,
-        marketCapRank: Int64? = nil,
-        priceChange24H: Double? = nil,
-        priceChangePercentage24H: Double? = nil,
-        circulatingSupply: Double? = nil,
-        ath: Double? = nil
+        image: URL?,
+        currentPrice: Double?,
+        marketCap: Double?,
+        marketCapRank: Int64?,
+        priceChange24H: Double?,
+        priceChangePercentage24H: Double?,
+        circulatingSupply: Double?,
+        ath: Double?
     ) {
         self.id = id
         self.symbol = symbol
@@ -41,18 +41,17 @@ struct Coin: Content, Equatable {
         self.ath = ath
     }
     
-    // MARK: - Coding Keys
+    // MARK: - Codable
     enum CodingKeys: String, CodingKey {
         case id, symbol, name, image, large, currentPrice, marketCap, marketCapRank, priceChange24H, priceChangePercentage24H, circulatingSupply, ath
     }
     
-    // MARK: - Decodable
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
         symbol = try container.decode(String.self, forKey: .symbol)
         name = try container.decode(String.self, forKey: .name)
-        image = try container.decodeIfPresent(URL.self, forKey: .image) ?? container.decodeIfPresent(URL.self, forKey: .large)
+        image = container.decodeSafeURL(forKey: .image) ?? container.decodeSafeURL(forKey: .large)
         currentPrice = try container.decodeIfPresent(Double.self, forKey: .currentPrice)
         marketCap = try container.decodeIfPresent(Double.self, forKey: .marketCap)
         marketCapRank = try container.decodeIfPresent(Int64.self, forKey: .marketCapRank)
@@ -62,7 +61,6 @@ struct Coin: Content, Equatable {
         ath = try container.decodeIfPresent(Double.self, forKey: .ath)
     }
     
-    // MARK: - Encodable
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(id, forKey: .id)

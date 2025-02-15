@@ -11,13 +11,7 @@ struct ChartData: Content, Equatable {
         self.close = close
     }
     
-    // MARK: - Coding Keys
-    private enum CodingKeys: String, CodingKey {
-        case timestamp
-        case close
-    }
-    
-    // MARK: - Decodable
+    // MARK: - Codable
     init(from decoder: Decoder) throws {
         if var unkeyedContainer = try? decoder.unkeyedContainer() {
             timestamp = try unkeyedContainer.decode(Int.self)
