@@ -5,12 +5,12 @@ struct MarketDataFactoryMock {
     static func makeMarketData(
         currentPrice: Double = .random(in: 0.01...100_000),
         marketCap: Double = .random(in: 100_000...1_000_000_000),
-        priceChange24H: Double = .random(in: -99...99)
+        priceChangePercentage24H: Double = .random(in: -99...99)
     ) -> MarketData {
         MarketData(
             currentPrice: currentPrice,
             marketCap: marketCap,
-            priceChange24H: priceChange24H
+            priceChangePercentage24H: priceChangePercentage24H
         )
     }
     

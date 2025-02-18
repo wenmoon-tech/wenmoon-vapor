@@ -171,30 +171,43 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
                 
                 return coins
             }
+            .flatMap { [unowned self] coins in
+                let ids = coins.compactMap { $0.id }
+                return fetchMarketData(for: ids, currency: .usd, req: req).map { marketDataDict in
+                    coins.forEach { coin in
+                        if let marketData = marketDataDict[coin.id!] {
+                            coin.updateMarketData(with: marketData)
+                        }
+                    }
+                    return coins
+                }
+            }
     }
     
     func fetchMarketData(for ids: [String], currency: Currency, req: Request) -> EventLoopFuture<[String: MarketData]> {
-        var result: [String: MarketData] = [:]
-        var idsToFetch: [String] = []
+        var validCache: [String: MarketData] = [:]
+        var missingIDs: [String] = []
+        
         for id in ids {
             if let cache = marketDataCache[id], cache.isValid(ttl: marketDataTTL) {
-                result[id] = cache.value
+                validCache[id] = cache.value
             } else {
-                idsToFetch.append(id)
+                marketDataCache.removeValue(forKey: id)
+                missingIDs.append(id)
             }
         }
         
-        if idsToFetch.isEmpty {
+        if missingIDs.isEmpty {
             req.logger.info("Returning cached market data for all requested coins")
-            return req.eventLoop.makeSucceededFuture(result)
+            return req.eventLoop.makeSucceededFuture(validCache)
         }
         
-        let idsString = idsToFetch.joined(separator: ",")
+        let idsString = missingIDs.joined(separator: ",")
         guard let uri = makePriceURI(ids: idsString, currency: currency.rawValue) else {
             return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Invalid price URI"))
         }
         
-        req.logger.info("Fetching market data from Coingecko for coin IDs: \(idsString)")
+        req.logger.info("Fetching fresh market data from Coingecko for coin IDs: \(idsString)")
         
         return req.client.get(uri, headers: makeHeaders())
             .flatMapThrowing { [unowned self] response in
@@ -204,17 +217,22 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
                 
                 let data = Data(buffer: body)
                 let rawData = try decoder.decode([String: [String: Double?]].self, from: data)
-                for (id, dict) in rawData {
-                    let processedDict = dict.compactMapValues { $0 }
-                    let marketData = MarketData(
-                        currentPrice: processedDict[currency.rawValue] ?? .zero,
-                        marketCap: processedDict["\(currency)_market_cap"],
-                        priceChange24H: processedDict["\(currency)_24h_change"]
-                    )
-                    marketDataCache[id] = MarketDataCache(value: marketData, lastUpdatedAt: Date())
-                    result[id] = marketData
+                var fetchedData: [String: MarketData] = [:]
+                
+                for id in missingIDs {
+                    if let dict = rawData[id] {
+                        let processedDict = dict.compactMapValues { $0 }
+                        let marketData = MarketData(
+                            currentPrice: processedDict[currency.rawValue] ?? .zero,
+                            marketCap: processedDict["\(currency)_market_cap"],
+                            priceChangePercentage24H: processedDict["\(currency)_24h_change"]
+                        )
+                        marketDataCache[id] = MarketDataCache(value: marketData, lastUpdatedAt: Date())
+                        fetchedData[id] = marketData
+                    }
                 }
                 
+                let result = validCache.merging(fetchedData) { (_, new) in new }
                 return result
             }
     }

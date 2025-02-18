@@ -41,7 +41,7 @@ final class PriceAlertServiceImpl: PriceAlertService {
                 MarketData(
                     currentPrice: coin.currentPrice,
                     marketCap: coin.marketCap,
-                    priceChange24H: coin.priceChange24H
+                    priceChangePercentage24H: coin.priceChangePercentage24H
                 )
             )
         })

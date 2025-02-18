@@ -10,7 +10,6 @@ struct CoinFactoryMock {
         currentPrice: Double? = .random(in: 0.01...100000),
         marketCap: Double? = .random(in: 1_000_000...1_000_000_000),
         marketCapRank: Int64? = .random(in: 1...1000),
-        priceChange24H: Double? = .random(in: -1000...1000),
         priceChangePercentage24H: Double? = .random(in: -50...50),
         circulatingSupply: Double? = .random(in: 1_000...1_000_000_000),
         ath: Double? = .random(in: 0.01...100000)
@@ -23,7 +22,6 @@ struct CoinFactoryMock {
             currentPrice: currentPrice,
             marketCap: marketCap,
             marketCapRank: marketCapRank,
-            priceChange24H: priceChange24H,
             priceChangePercentage24H: priceChangePercentage24H,
             circulatingSupply: circulatingSupply,
             ath: ath

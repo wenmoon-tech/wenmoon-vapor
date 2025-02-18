@@ -1,18 +1,17 @@
 import Vapor
 
-struct Coin: Content, Equatable {
+final class Coin: Content {
     // MARK: - Properties
-    let id: String?
-    let symbol: String
-    let name: String
-    let image: URL?
-    let currentPrice: Double?
-    let marketCap: Double?
-    let marketCapRank: Int64?
-    let priceChange24H: Double?
-    let priceChangePercentage24H: Double?
-    let circulatingSupply: Double?
-    let ath: Double?
+    var id: String?
+    var symbol: String
+    var name: String
+    var image: URL?
+    var currentPrice: Double?
+    var marketCap: Double?
+    var marketCapRank: Int64?
+    var priceChangePercentage24H: Double?
+    var circulatingSupply: Double?
+    var ath: Double?
     
     // MARK: - Initializer
     init(
@@ -23,7 +22,6 @@ struct Coin: Content, Equatable {
         currentPrice: Double?,
         marketCap: Double?,
         marketCapRank: Int64?,
-        priceChange24H: Double?,
         priceChangePercentage24H: Double?,
         circulatingSupply: Double?,
         ath: Double?
@@ -35,7 +33,6 @@ struct Coin: Content, Equatable {
         self.currentPrice = currentPrice
         self.marketCap = marketCap
         self.marketCapRank = marketCapRank
-        self.priceChange24H = priceChange24H
         self.priceChangePercentage24H = priceChangePercentage24H
         self.circulatingSupply = circulatingSupply
         self.ath = ath
@@ -43,7 +40,7 @@ struct Coin: Content, Equatable {
     
     // MARK: - Codable
     enum CodingKeys: String, CodingKey {
-        case id, symbol, name, image, large, currentPrice, marketCap, marketCapRank, priceChange24H, priceChangePercentage24H, circulatingSupply, ath
+        case id, symbol, name, image, large, currentPrice, marketCap, marketCapRank, priceChangePercentage24H, circulatingSupply, ath
     }
     
     init(from decoder: Decoder) throws {
@@ -55,7 +52,6 @@ struct Coin: Content, Equatable {
         currentPrice = try container.decodeIfPresent(Double.self, forKey: .currentPrice)
         marketCap = try container.decodeIfPresent(Double.self, forKey: .marketCap)
         marketCapRank = try container.decodeIfPresent(Int64.self, forKey: .marketCapRank)
-        priceChange24H = try container.decodeIfPresent(Double.self, forKey: .priceChange24H)
         priceChangePercentage24H = try container.decodeIfPresent(Double.self, forKey: .priceChangePercentage24H)
         circulatingSupply = try container.decodeIfPresent(Double.self, forKey: .circulatingSupply)
         ath = try container.decodeIfPresent(Double.self, forKey: .ath)
@@ -70,9 +66,27 @@ struct Coin: Content, Equatable {
         try container.encodeIfPresent(currentPrice, forKey: .currentPrice)
         try container.encodeIfPresent(marketCap, forKey: .marketCap)
         try container.encodeIfPresent(marketCapRank, forKey: .marketCapRank)
-        try container.encodeIfPresent(priceChange24H, forKey: .priceChange24H)
         try container.encodeIfPresent(priceChangePercentage24H, forKey: .priceChangePercentage24H)
         try container.encodeIfPresent(circulatingSupply, forKey: .circulatingSupply)
         try container.encodeIfPresent(ath, forKey: .ath)
+    }
+    
+    func updateMarketData(with marketData: MarketData) {
+        currentPrice = marketData.currentPrice
+        marketCap = marketData.marketCap
+        priceChangePercentage24H = marketData.priceChangePercentage24H
+    }
+}
+
+// MARK: - Equatable
+extension Coin: Equatable {
+    static func == (lhs: Coin, rhs: Coin) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.symbol == rhs.symbol &&
+        lhs.name == rhs.name &&
+        lhs.image?.absoluteString == rhs.image?.absoluteString &&
+        lhs.currentPrice == rhs.currentPrice &&
+        lhs.marketCap == rhs.marketCap &&
+        lhs.ath == rhs.ath
     }
 }
