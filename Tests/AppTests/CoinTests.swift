@@ -58,7 +58,7 @@ final class CoinTests: XCTestCase {
         // Setup
         let coinDetails = CoinDetailsFactoryMock.makeCoinDetails()
         service.fetchCoinDetailsResult = .success(coinDetails)
-
+        
         // Action
         try app.test(.GET, "coin-details?id=\(coinDetails.id)", headers: headers) { response in
             XCTAssertEqual(response.status, .ok)
@@ -71,7 +71,7 @@ final class CoinTests: XCTestCase {
         // Setup
         let coinDetails = CoinDetailsFactoryMock.makeCoinDetails()
         service.fetchCoinDetailsResult = .success(coinDetails)
-
+        
         
         // Action: Fetch coin details with a nonexistent ID
         try app.test(.GET, "coin-details?id=nonexistent-coin", headers: headers) { response in
@@ -208,6 +208,86 @@ final class CoinTests: XCTestCase {
             // Assertions: Check that no market data is returned for missing IDs parameter
             XCTAssertEqual(response.status, .badRequest)
             XCTAssert(response.body.string.contains("Query parameter 'ids' is required"))
+        }
+    }
+    
+    // Global Market Data
+    func testGetFearAndGreedIndex_success() async throws {
+        // Setup
+        let index = FearAndGreedIndex(data: [.init(value: "75", valueClassification: "Greed")])
+        service.fetchFearAndGreedIndexResult = .success(index)
+        
+        // Action
+        try app.test(.GET, "fear-and-greed", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let receivedIndex = try response.content.decode(FearAndGreedIndex.self)
+            XCTAssertEqual(receivedIndex, index)
+        }
+    }
+    
+    func testGetFearAndGreed_failure() async throws {
+        // Setup
+        let reason = "Mock service failure"
+        service.fetchFearAndGreedIndexResult = .failure(Abort(.internalServerError, reason: reason))
+        
+        // Action
+        try app.test(.GET, "fear-and-greed", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .internalServerError)
+            XCTAssert(response.body.string.contains(reason))
+        }
+    }
+    
+    func testGetGlobalCryptoMarketData_success() async throws {
+        // Setup
+        let data = GlobalCryptoMarketData(
+            marketCapPercentage: [
+                "btc": 57.83,
+                "eth": 13.47,
+                "usdt": 2.62
+            ]
+        )
+        service.fetchGlobalCryptoMarketDataResult = .success(data)
+        
+        // Action
+        try app.test(.GET, "global-crypto-market-data", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let receivedData = try response.content.decode(GlobalCryptoMarketData.self)
+            XCTAssertEqual(receivedData, data)
+        }
+    }
+    
+    func testGetGlobalCryptoMarketData_serviceFailure() async throws {
+        // Setup
+        let reason = "Mock service failure"
+        service.fetchGlobalCryptoMarketDataResult = .failure(Abort(.internalServerError, reason: reason))
+        
+        // Action
+        try app.test(.GET, "global-crypto-market-data", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .internalServerError)
+            XCTAssert(response.body.string.contains(reason))
+        }
+    }
+    
+    func testGetGlobalMarketData_success() async throws {
+        // Setup
+        let data = GlobalMarketData(
+            cpiPercentage: 2.7,
+            nextCPITimestamp: 1736947800,
+            interestRatePercentage: 4.5,
+            nextFOMCMeetingTimestamp: 1734548400
+        )
+        service.fetchGlobalMarketDataResult = .success(data)
+        
+        // Action
+        try app.test(.GET, "global-market-data", headers: headers) { response in
+            // Assertions
+            XCTAssertEqual(response.status, .ok)
+            let receivedData = try response.content.decode(GlobalMarketData.self)
+            XCTAssertEqual(receivedData, data)
         }
     }
 }

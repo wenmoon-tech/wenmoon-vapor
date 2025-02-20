@@ -1,5 +1,5 @@
 import Vapor
 
-struct GlobalCryptoMarketData: Content {
+struct GlobalCryptoMarketData: Content, Equatable {
     let marketCapPercentage: [String: Double]
 }

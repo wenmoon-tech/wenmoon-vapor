@@ -5,8 +5,10 @@ protocol CoinScannerService {
     func fetchCoinDetails(for id: String, req: Request) -> EventLoopFuture<CoinDetails>
     func fetchChartData(for id: String, on timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[ChartData]>
     func searchCoins(by query: String, req: Request) -> EventLoopFuture<[Coin]>
+    func fetchFearAndGreedIndex(req: Request) -> EventLoopFuture<FearAndGreedIndex>
     func fetchMarketData(for ids: [String], currency: Currency, req: Request) -> EventLoopFuture<[String: MarketData]>
     func fetchGlobalCryptoMarketData(req: Request) -> EventLoopFuture<GlobalCryptoMarketData>
+    func fetchGlobalMarketData(req: Request) -> EventLoopFuture<GlobalMarketData>
 }
 
 final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
@@ -52,10 +54,14 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
     private var marketDataCache: [String: MarketDataCache] = [:]
     private let marketDataTTL: TimeInterval = 3 * 60  // 3 minutes
     
+    private var fearAndGreedCache: Cache<FearAndGreedIndex>?
+    private let fearAndGreedTTL: TimeInterval = 120 * 60  // 2 hours
+    
     private var globalMarketDataCache: GlobalMarketDataCache?
     private let globalMarketDataTTL: TimeInterval = 120 * 60  // 2 hours
     
     // MARK: - Internal Methods
+    // Coins
     func fetchCoins(onPage page: Int64, perPage: Int64, currency: Currency, req: Request) -> EventLoopFuture<[Coin]> {
         if let cache = coinsCache[page], cache.isValid(ttl: coinsTTL) {
             req.logger.info("Returning cached coins for page \(page)")
@@ -81,6 +87,7 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    // Coin Details
     func fetchCoinDetails(for id: String, req: Request) -> EventLoopFuture<CoinDetails> {
         if let cached = coinDetailsCache.first(where: { $0.value.id == id }), cached.isValid(ttl: coinDetailsTTL) {
             req.logger.info("Returning cached coin details for coin ID: \(id)")
@@ -112,6 +119,7 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    // Chart Data
     func fetchChartData(for id: String, on timeframe: Timeframe, currency: Currency, req: Request) -> EventLoopFuture<[ChartData]> {
         if let cached = getCachedChartData(for: id, timeframe: timeframe) {
             return currency == .usd
@@ -146,6 +154,7 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    // Search Coins
     func searchCoins(by query: String, req: Request) -> EventLoopFuture<[Coin]> {
         if let cached = searchCache[query], cached.isValid(ttl: searchTTL) {
             req.logger.info("Returning cached search results for query: \(query)")
@@ -184,6 +193,7 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    // Market Data
     func fetchMarketData(for ids: [String], currency: Currency, req: Request) -> EventLoopFuture<[String: MarketData]> {
         var validCache: [String: MarketData] = [:]
         var missingIDs: [String] = []
@@ -237,6 +247,32 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    // Fear & Greed Index
+    func fetchFearAndGreedIndex(req: Request) -> EventLoopFuture<FearAndGreedIndex> {
+        if let cache = fearAndGreedCache, cache.isValid(ttl: fearAndGreedTTL) {
+            req.logger.info("Returning cached Fear & Greed Index data.")
+            return req.eventLoop.makeSucceededFuture(cache.value)
+        }
+        
+        guard let uri = makeFearAndGreedURI() else {
+            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Invalid Fear & Greed Index URI"))
+        }
+        
+        req.logger.info("Fetching Fear & Greed Index from Alternative API.")
+        
+        return req.client.get(uri, headers: makeFearAndGreedHeaders()).flatMapThrowing { [unowned self] response in
+            guard response.status == .ok, let body = response.body else {
+                throw Abort(.internalServerError, reason: "Failed to fetch Fear & Greed Index: \(response.status)")
+            }
+            
+            let decodedResponse = try decoder.decode(FearAndGreedIndex.self, from: Data(buffer: body))
+            fearAndGreedCache = Cache(value: decodedResponse, lastUpdatedAt: Date())
+            
+            return decodedResponse
+        }
+    }
+    
+    // Global Crypto Market Data
     func fetchGlobalCryptoMarketData(req: Request) -> EventLoopFuture<GlobalCryptoMarketData> {
         if let cache = globalMarketDataCache, cache.isValid(ttl: globalMarketDataTTL) {
             req.logger.info("Returning cached global market data.")
@@ -263,12 +299,31 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
             }
     }
     
+    func fetchGlobalMarketData(req: Request) -> EventLoopFuture<GlobalMarketData> {
+        let globalMarketData = GlobalMarketData(
+            cpiPercentage: 3,
+            nextCPITimestamp: 1741776600,
+            interestRatePercentage: 4.5,
+            nextFOMCMeetingTimestamp: 1741855200
+        )
+        return req.eventLoop.makeSucceededFuture(globalMarketData)
+    }
+    
     // MARK: - Private Methods
+    // TODO: Hide API Key
     private func makeHeaders() -> HTTPHeaders {
         var headers = HTTPHeaders()
         headers.add(name: .userAgent, value: "VaporApp/1.0")
         headers.add(name: .accept, value: "application/json")
         headers.add(name: "x-cg-demo-api-key", value: "CG-QAWEu4NebmGxZFmGVWrQPYwT")
+        return headers
+    }
+    
+    // TODO: Hide API Key
+    private func makeFearAndGreedHeaders() -> HTTPHeaders {
+        var headers = HTTPHeaders()
+        headers.add(name: "x-rapidapi-host", value: "fear-and-greed-index.p.rapidapi.com")
+        headers.add(name: "x-rapidapi-key", value: "9584b3c9c7msha7247720494bfd1p123d0bjsne74669f639c5")
         return headers
     }
     
@@ -305,11 +360,12 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
         return URI(string: urlString)
     }
     
+    private func makeFearAndGreedURI() -> URI? {
+        URI(string: "https://api.alternative.me/fng")
+    }
+    
     private func makeGlobalMarketDataURI() -> URI? {
-        guard let urlString = URL(string: "https://api.coingecko.com/api/v3/global")?.absoluteString else {
-            return nil
-        }
-        return URI(string: urlString)
+        URI(string: "https://api.coingecko.com/api/v3/global")
     }
     
     private func makeChartDataURI(for id: String, days: String) -> URI? {
@@ -360,7 +416,7 @@ final class CoinScannerServiceImpl: BaseBackendService, CoinScannerService {
     }
     
     private func fetchConversionRate(from: Currency, to: Currency, req: Request) -> EventLoopFuture<Double> {
-        let rates: [Currency: Double] = [.usd: 1, .eur: 0.85, .gbp: 0.75]
+        let rates: [Currency: Double] = [.usd: 1, .eur: 0.96, .gbp: 0.79]
         guard let rate = rates[to] else {
             return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Unsupported currency \(to.rawValue)"))
         }

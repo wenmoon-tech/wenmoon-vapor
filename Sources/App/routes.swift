@@ -60,44 +60,19 @@ func routes(_ app: Application) throws {
     }
     
     // MARK: - Global Market Data
+    app.get("fear-and-greed") { req -> EventLoopFuture<FearAndGreedIndex> in
+        let provider = getProvider(req)
+        return provider.fetchFearAndGreedIndex(req: req)
+    }
+    
     app.get("global-crypto-market-data") { req -> EventLoopFuture<GlobalCryptoMarketData> in
         let provider = getProvider(req)
         return provider.fetchGlobalCryptoMarketData(req: req)
     }
     
     app.get("global-market-data") { req -> EventLoopFuture<GlobalMarketData> in
-        req.eventLoop.makeSucceededFuture(
-            GlobalMarketData(
-                cpiPercentage: 2.7,
-                nextCPITimestamp: 1736947800,
-                interestRatePercentage: 4.5,
-                nextFOMCMeetingTimestamp: 1734548400
-            )
-        )
-    }
-    
-    func validateChartDataQueryParams(_ req: Request) throws -> (String, Timeframe, Currency) {
-        func getQueryParam<T: Decodable>(_ key: String) throws -> T {
-            do {
-                let value = try req.query.get(T.self, at: key)
-                if let strValue = value as? String, strValue.isEmpty {
-                    throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
-                }
-                return value
-            } catch {
-                throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
-            }
-        }
-        
-        let id: String = try getQueryParam("id")
-        let timeframe: Timeframe = try getQueryParam("timeframe")
-        let currency: Currency = try getQueryParam("currency")
-        
-        return (id, timeframe, currency)
-    }
-    
-    func getProvider(_ req: Request) -> CoinScannerService {
-        req.application.storage[CoinInfoProviderKey.self] ?? CoinScannerServiceImpl.shared
+        let provider = getProvider(req)
+        return provider.fetchGlobalMarketData(req: req)
     }
     
     // MARK: - Price Alerts
@@ -211,5 +186,30 @@ func routes(_ app: Application) throws {
                     Response(status: .ok, headers: headers, body: .init(data: body))
                 }
             }
+    }
+    
+    // MARK: - Helpers
+    func validateChartDataQueryParams(_ req: Request) throws -> (String, Timeframe, Currency) {
+        func getQueryParam<T: Decodable>(_ key: String) throws -> T {
+            do {
+                let value = try req.query.get(T.self, at: key)
+                if let strValue = value as? String, strValue.isEmpty {
+                    throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
+                }
+                return value
+            } catch {
+                throw Abort(.badRequest, reason: "Query parameter '\(key)' is invalid or missing")
+            }
+        }
+        
+        let id: String = try getQueryParam("id")
+        let timeframe: Timeframe = try getQueryParam("timeframe")
+        let currency: Currency = try getQueryParam("currency")
+        
+        return (id, timeframe, currency)
+    }
+    
+    func getProvider(_ req: Request) -> CoinScannerService {
+        req.application.storage[CoinInfoProviderKey.self] ?? CoinScannerServiceImpl.shared
     }
 }
